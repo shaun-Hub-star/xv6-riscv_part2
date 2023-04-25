@@ -22,7 +22,7 @@ int uthread_create(void (*start_func)(), enum sched_priority priority)
     uthreads[i].context.sp = (uint64)&uthreads[i].ustack[STACK_SIZE - 1]; // need to check if at 0 or STACK_SIZE or STACK_SIZE-1
 
     uthreads[i].state = RUNNABLE;
-    return 0;
+    return i;
 }
 void uthread_yield()
 {
@@ -34,9 +34,11 @@ int uthread_yield_internal()
     int startingIndex = (my_thread - uthreads) / sizeof(struct uthread);
     int i, modI;
     int minPos = -1, minPriority = 3;
+    printf("Starting index:%d\n", startingIndex);
     for (i = startingIndex + 1; i < startingIndex + MAX_UTHREADS; i++)
     {
         modI = i % MAX_UTHREADS;
+        // printf("Thread num:%d   state:%d\n", modI, uthreads[modI].state);
         if (uthreads[modI].state == RUNNABLE && uthreads[modI].priority < minPriority)
         {
             minPos = modI;
@@ -76,24 +78,26 @@ int uthread_start_all() // need to init my_thread
     if (started)
         return -1;
     started = 1;
-
-    int i, modI;
+    int counter = 0;
+    int i;
     int minPos = -1, minPriority = 3;
     for (i = 0; i < MAX_UTHREADS; i++)
     {
-        modI = i % MAX_UTHREADS;
-        if (uthreads[modI].state == RUNNABLE && uthreads[modI].priority < minPriority)
+        if (uthreads[i].state == RUNNABLE && uthreads[i].priority < minPriority)
         {
-            minPos = modI;
-            minPriority = uthreads[modI].priority;
+            counter++;
+            minPos = i;
+            minPriority = uthreads[i].priority;
         }
     }
+    return counter;
     if (minPos == -1)
         return -1;
 
     struct uthread old;
 
     my_thread = &uthreads[minPos]; // we preformed this before the next line because after the next line the processor will run code of the next thread
+
     uswtch(&old.context, &my_thread->context);
     return 0;
 }
