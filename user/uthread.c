@@ -1,5 +1,6 @@
 #include "types.h"
 #include "uthread.h"
+#include "user.h"
 
 struct uthread uthreads[MAX_UTHREADS];
 struct uthread *my_thread;
@@ -23,4 +24,23 @@ int uthread_create(void (*start_func)(), enum sched_priority priority)
 }
 void uthread_yield()
 {
+    int startingIndex = (my_thread - uthreads) / sizeof(struct uthread);
+    int i, modI;
+    int minPos = -1, minPriority = 3;
+    for (i = startingIndex + 1; i < startingIndex + MAX_UTHREADS; i++)
+    {
+        modI = i % MAX_UTHREADS;
+        if (uthreads[modI].state == RUNNABLE && uthreads[modI].priority < minPriority)
+        {
+            minPos = modI;
+            minPriority = uthreads[modI].priority;
+        }
+    }
+    if (minPos == -1)
+        exit(69);
+
+    struct uthread *old = my_thread;
+
+    my_thread = &uthreads[minPos]; // we preformed this before the next line because after the next line the processor will run code of the next thread
+    uswtch(&old->context, &my_thread->context);
 }
