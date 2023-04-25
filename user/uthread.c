@@ -16,7 +16,7 @@ int uthread_create(void (*start_func)(), enum sched_priority priority)
 
     uthreads[i].priority = priority;
     uthreads[i].context.ra = (uint64)start_func;
-    uthreads[i].context.sp = (uint64)&uthreads[i].ustack[STACK_SIZE]; // need to check if at 0 or STACK_SIZE or STACK_SIZE-1
+    uthreads[i].context.sp = (uint64)&uthreads[i].ustack[STACK_SIZE - 1]; // need to check if at 0 or STACK_SIZE or STACK_SIZE-1
 
     uthreads[i].state = RUNNABLE;
     return 0;
