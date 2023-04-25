@@ -24,6 +24,11 @@ int uthread_create(void (*start_func)(), enum sched_priority priority)
 }
 void uthread_yield()
 {
+    if (uthread_yield_internal() == -1) // if we passed this line we got an error
+        exit(69);
+}
+int uthread_yield_internal()
+{
     int startingIndex = (my_thread - uthreads) / sizeof(struct uthread);
     int i, modI;
     int minPos = -1, minPriority = 3;
@@ -37,10 +42,18 @@ void uthread_yield()
         }
     }
     if (minPos == -1)
-        exit(69);
+        return -1;
 
     struct uthread *old = my_thread;
 
     my_thread = &uthreads[minPos]; // we preformed this before the next line because after the next line the processor will run code of the next thread
     uswtch(&old->context, &my_thread->context);
+    return 0;
+}
+
+void uthread_exit()
+{
+    my_thread->state = FREE;
+    if (uthread_yield_internal() == -1) // if we dont pass this line there is another thread to run
+        exit(0);
 }
