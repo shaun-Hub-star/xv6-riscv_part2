@@ -1,4 +1,4 @@
-#include "types.h"
+#include "kernel/types.h"
 #include "uthread.h"
 #include "user.h"
 
@@ -6,6 +6,7 @@ struct uthread uthreads[MAX_UTHREADS];
 struct uthread *my_thread = 0;
 static int started = 0;
 
+int uthread_yield_internal();
 int uthread_create(void (*start_func)(), enum sched_priority priority)
 {
     int i;
