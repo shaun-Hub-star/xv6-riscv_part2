@@ -57,3 +57,14 @@ void uthread_exit()
     if (uthread_yield_internal() == -1) // if we dont pass this line there is another thread to run
         exit(0);
 }
+enum sched_priority uthread_set_priority(enum sched_priority priority)
+{
+    enum sched_priority prev = my_thread->priority;
+    my_thread->priority = priority;
+    return prev;
+}
+
+enum sched_priority uthread_get_priority()
+{
+    return my_thread->priority;
+}
