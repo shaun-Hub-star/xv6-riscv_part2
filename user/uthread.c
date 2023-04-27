@@ -9,8 +9,6 @@ static int started = 0;
 int uthread_yield_internal();
 int uthread_create(void (*start_func)(), enum sched_priority priority)
 {
-    if (start_func == 0)
-        return -1;
 
     int i;
     for (i = 0; i < MAX_UTHREADS; i++) // no locks - only one proccessor at the time
