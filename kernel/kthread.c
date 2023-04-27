@@ -10,9 +10,16 @@ extern struct proc proc[NPROC];
 
 void kthreadinit(struct proc *p)
 {
+  // Given a proc, it initializes the lock in charge of thread ID allocation
 
-  for (struct kthread *kt = p->kthread; kt < &p->kthread[NKT]; kt++)
+  for (struct kthread *kt = p->kthread; kt < &p->kthread[NKT]; kt++) // for every kernel thread
   {
+    // init lock
+    initlock(&kt->thread_lock, "thread");
+    // init state to unused
+    kt->thread_state = T_UNUSED;
+    // reference to the belong proc
+    kt->my_proc = p;
 
     // WARNING: Don't change this line!
     // get the pointer to the kernel stack of the kthread
@@ -31,7 +38,8 @@ struct trapframe *get_kthread_trapframe(struct proc *p, struct kthread *kt)
 }
 
 // TODO: delte this after you are done with task 2.2
-void allocproc_help_function(struct proc *p) {
+void allocproc_help_function(struct proc *p)
+{
   p->kthread->trapframe = get_kthread_trapframe(p, p->kthread);
 
   p->context.sp = p->kthread->kstack + PGSIZE;

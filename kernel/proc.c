@@ -55,7 +55,7 @@ void procinit(void)
   initlock(&wait_lock, "wait_lock");
   for (p = proc; p < &proc[NPROC]; p++)
   {
-    initlock(&p->lock, "proc");
+    initlock(&p->proc_lock, "proc");
     p->state = P_UNUSED;
     kthreadinit(p);
   }
