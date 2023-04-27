@@ -86,7 +86,7 @@ myproc(void)
 {
   push_off();
   struct cpu *c = mycpu();
-  struct proc *p = c->proc; // fixme
+  struct proc *p = c->thread->my_proc; // tomer please check
   pop_off();
   return p;
 }
