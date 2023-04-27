@@ -6,7 +6,7 @@
 #include "proc.h"
 #include "defs.h"
 
-struct cpu cpus[NCPU]; // maybe should be extern?
+struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
 
@@ -167,6 +167,7 @@ found:
 static void
 freeproc(struct proc *p)
 {
+  struct kthread *kt;
   if (p->base_trapframes)
     kfree((void *)p->base_trapframes);
   p->base_trapframes = 0;
@@ -181,6 +182,11 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = P_UNUSED;
+
+  for (kt = p->kthread; kt < &p->kthread[NKT]; kt++)
+  {
+    free_kthread(kt);
+  }
 }
 
 // Create a user page table for a given process, with no user memory,
@@ -247,7 +253,7 @@ void userinit(void)
 
   p = allocproc();
   initproc = p;
-
+  initproc->kthread[0].thread_state = T_RUNNABLE;
   // allocate one user page and copy initcode's instructions
   // and data into it.
   uvmfirst(p->pagetable, initcode, sizeof(initcode));
@@ -260,9 +266,8 @@ void userinit(void)
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
-  p->state = RUNNABLE;
-
-  release(&p->lock);
+  release(&initproc->kthread[0].thread_lock);
+  release(&p->proc_lock);
 }
 
 // Grow or shrink user memory by n bytes.
@@ -307,7 +312,7 @@ int fork(void)
   if (uvmcopy(p->pagetable, np->pagetable, p->sz) < 0)
   {
     freeproc(np);
-    release(&np->lock);
+    release(&np->proc_lock);
     return -1;
   }
   np->sz = p->sz;
