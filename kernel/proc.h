@@ -47,15 +47,15 @@ struct proc
   struct proc *parent; // Parent process
 
   // these are private to the process, so p->lock need not be held.
-  uint64 kstack;              // Virtual address of kernel stack
-  uint64 sz;                  // Size of process memory (bytes)
-  pagetable_t pagetable;      // User page table
-  // struct context context;     // swtch() here to run process
+  uint64 kstack;         // Virtual address of kernel stack
+  uint64 sz;             // Size of process memory (bytes)
+  pagetable_t pagetable; // User page table
+  // struct context context;     // swtch() here to run process, tomer check, look at allocproc_help_function
   struct file *ofile[NOFILE]; // Open files
   struct inode *cwd;          // Current directory
   char name[16];              // Process name (debugging)
 
   // new
-  struct spinlock alloc_tid_lock;
+  struct spinlock tid_lock;
   int tid_counter;
 };

@@ -6,7 +6,7 @@
 #include "proc.h"
 #include "defs.h"
 
-struct cpu cpus[NCPU];
+struct cpu cpus[NCPU]; // maybe should be extern?
 
 struct proc proc[NPROC];
 
@@ -114,27 +114,30 @@ allocproc(void)
 
   for (p = proc; p < &proc[NPROC]; p++)
   {
-    acquire(&p->lock);
+    acquire(&p->proc_lock);
     if (p->state == P_UNUSED)
     {
       goto found;
     }
     else
     {
-      release(&p->lock);
+      release(&p->proc_lock);
     }
   }
   return 0;
 
 found:
   p->pid = allocpid();
+  p->tid_counter = 1;
+  alloc_kthread(p);
+  // p->kthread[0] =
   p->state = P_USED;
 
   // Allocate a trapframe page.
   if ((p->base_trapframes = (struct trapframe *)kalloc()) == 0)
   {
     freeproc(p);
-    release(&p->lock);
+    release(&p->proc_lock);
     return 0;
   }
 
@@ -143,18 +146,18 @@ found:
   if (p->pagetable == 0)
   {
     freeproc(p);
-    release(&p->lock);
+    release(&p->proc_lock);
     return 0;
   }
 
   // Set up new context to start executing at forkret,
   // which returns to user space.
-  memset(&p->context, 0, sizeof(p->context));
-  p->context.ra = (uint64)forkret;
-  p->context.sp = p->kstack + PGSIZE;
+  // memset(&p->con, 0, sizeof(p->context));
+  // p->context.ra = (uint64)forkret;
+  // p->context.sp = p->kstack + PGSIZE;
 
   // TODO: delte this after you are done with task 2.2
-  allocproc_help_function(p);
+  // allocproc_help_function(p);
   return p;
 }
 
