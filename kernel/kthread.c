@@ -33,7 +33,7 @@ struct kthread *mykthread()
 {
   push_off();
   struct cpu *c = mycpu();
-  struct kthread *kt = c->thread; // tomer please check
+  struct kthread *kt = c->thread;
   pop_off();
   return kt;
 }
@@ -76,11 +76,13 @@ alloc_kthread(struct proc *p)
       release(&kt->thread_lock);
     }
   }
+  return 0;
+
 found:
   kt->tid = alloctid(p);
   kt->thread_state = T_USED;
   // Allocate a trapframe page.
-  if ((kt->trapframe = get_kthread_trapframe(p, kt)) == 0)
+  if ((kt->trapframe = get_kthread_trapframe(p, kt)) == 0)//check!
   {
     free_kthread(kt);
     release(&kt->thread_lock);
@@ -97,14 +99,13 @@ found:
 
 // free a proc structure and the data hanging from it,
 // including user pages.
-// p->lock must be held.
+// kt->thread_lock must be held.
 void free_kthread(struct kthread *kt)
 {
   if (kt->trapframe)
     kfree((void *)kt->trapframe);
   kt->trapframe = 0;
   kt->tid = 0;
-  kt->my_proc = 0;
   // kt->name[0] = 0; could be done in the future
   kt->thread_chan = 0;
   kt->thread_killed = 0;
