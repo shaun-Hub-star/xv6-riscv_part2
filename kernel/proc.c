@@ -84,11 +84,8 @@ mycpu(void)
 struct proc *
 myproc(void)
 {
-  push_off();
-  struct cpu *c = mycpu();
-  struct proc *p = c->thread->my_proc; // tomer please check
-  pop_off();
-  return p;
+
+  return mykthread()->my_proc;
 }
 
 int allocpid()
@@ -178,7 +175,6 @@ freeproc(struct proc *p)
   p->pid = 0;
   p->parent = 0;
   p->name[0] = 0;
-  p->chan = 0;
   p->killed = 0;
   p->xstate = 0;
   p->state = P_UNUSED;

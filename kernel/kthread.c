@@ -11,7 +11,7 @@ extern struct proc proc[NPROC];
 void kthreadinit(struct proc *p)
 {
   // Given a proc, it initializes the lock in charge of thread ID allocation
-  initlock(&p->tid_counter, "tid");
+  initlock(&p->tid_lock, "tid");
   // p->tid_counter = 1;
 
   for (struct kthread *kt = p->kthread; kt < &p->kthread[NKT]; kt++) // for every kernel thread
