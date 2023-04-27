@@ -1,4 +1,3 @@
-
 // per-process data for the trap handling code in trampoline.S.
 // sits in a page by itself just under the trampoline page in the
 // user page table. not specially mapped in the kernel page table.
@@ -11,7 +10,8 @@
 // the trapframe includes callee-saved user registers like s0-s11 because the
 // return-to-user path via usertrapret() doesn't return through
 // the entire kernel call stack.
-struct trapframe {
+struct trapframe
+{
   /*   0 */ uint64 kernel_satp;   // kernel page table
   /*   8 */ uint64 kernel_sp;     // top of process's kernel stack
   /*  16 */ uint64 kernel_trap;   // usertrap()
@@ -50,10 +50,58 @@ struct trapframe {
   /* 280 */ uint64 t6;
 };
 
+// Saved registers for kernel context switches.
+struct context
+{
+  uint64 ra;
+  uint64 sp;
+
+  // callee-saved
+  uint64 s0;
+  uint64 s1;
+  uint64 s2;
+  uint64 s3;
+  uint64 s4;
+  uint64 s5;
+  uint64 s6;
+  uint64 s7;
+  uint64 s8;
+  uint64 s9;
+  uint64 s10;
+  uint64 s11;
+};
+
+enum threadstate
+{
+  T_UNUSED,
+  T_USED,
+  T_SLEEPING,
+  T_RUNNABLE,
+  T_RUNNING,
+  T_ZOMBIE
+};
+// Per-CPU state.
+struct cpu
+{
+  struct kthread *thread;   // The process running on this cpu, or null.
+  struct context t_context; // swtch() here to enter scheduler().
+  int noff;                 // Depth of push_off() nesting.
+  int intena;               // Were interrupts enabled before push_off()?
+};
+
+extern struct cpu cpus[NCPU];
 struct kthread
 {
+  struct spinlock lock_thread;
+  enum threadstate state_thread;
+  void *chan_thread; // If non-zero, sleeping on chan
+  int killed_thread; // If non-zero, have been killed
+  int xstate_thread; // Exit status to be returned to parent's wait
+  int tid;           // thread ID
+  struct proc *my_proc;
+  struct context context_thread; // swtch() here to run process
 
-  uint64 kstack;                // Virtual address of kernel stack
+  uint64 kstack; // Virtual address of kernel stack
 
-  struct trapframe *trapframe;  // data page for trampoline.S
+  struct trapframe *trapframe; // data page for trampoline.S
 };
