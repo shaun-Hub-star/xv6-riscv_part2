@@ -92,14 +92,14 @@ struct cpu
 extern struct cpu cpus[NCPU];
 struct kthread
 {
-  struct spinlock lock_thread;
-  enum threadstate state_thread;
-  void *chan_thread; // If non-zero, sleeping on chan
-  int killed_thread; // If non-zero, have been killed
-  int xstate_thread; // Exit status to be returned to parent's wait
+  struct spinlock thread_lock;
+  enum threadstate thread_state;
+  void *thread_chan; // If non-zero, sleeping on chan
+  int thread_killed; // If non-zero, have been killed
+  int thread_xstate; // Exit status to be returned to parent's wait
   int tid;           // thread ID
   struct proc *my_proc;
-  struct context context_thread; // swtch() here to run process
+  struct context thread_context; // swtch() here to run process
 
   uint64 kstack; // Virtual address of kernel stack
 

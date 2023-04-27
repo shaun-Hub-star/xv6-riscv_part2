@@ -31,7 +31,7 @@ enum procstate
 // Per-process state
 struct proc
 {
-  struct spinlock lock;
+  struct spinlock proc_lock;
 
   // p->lock must be held when using these:
   enum procstate state; // Process state
