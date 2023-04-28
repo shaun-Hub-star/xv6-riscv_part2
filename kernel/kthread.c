@@ -113,3 +113,24 @@ void free_kthread(struct kthread *kt)
   kt->thread_state = T_UNUSED;
   // should not free the stack!
 }
+
+int kthread_create(void)
+{
+  return -1;
+}
+int kthread_id(void)
+{
+  return mykthread()->tid;
+}
+int kthread_kill(void)
+{
+  return -1;
+}
+void kthread_exit(void)
+{
+  return;
+}
+int kthread_join(void)
+{
+  return -1;
+}
