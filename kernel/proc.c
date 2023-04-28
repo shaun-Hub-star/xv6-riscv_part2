@@ -155,10 +155,6 @@ static void
 freeproc(struct proc *p)
 {
   struct kthread *kt;
-  for (kt = p->kthread; kt < &p->kthread[NKT]; kt++)
-  {
-    free_kthread(kt);
-  }
   if (p->base_trapframes)
     kfree((void *)p->base_trapframes);
   p->base_trapframes = 0;
@@ -173,7 +169,10 @@ freeproc(struct proc *p)
   p->xstate = 0;
   p->state = P_UNUSED;
   p->tid_counter = 0;
-
+  for (kt = p->kthread; kt < &p->kthread[NKT]; kt++)
+  {
+    free_kthread(kt);
+  }
   // what about files?!?! and current directory
 }
 
