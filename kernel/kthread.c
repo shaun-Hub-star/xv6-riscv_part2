@@ -82,7 +82,7 @@ found:
   kt->tid = alloctid(p);
   kt->thread_state = T_USED;
   // Allocate a trapframe page.
-  if ((kt->trapframe = get_kthread_trapframe(p, kt)) == 0)//check!
+  if ((kt->trapframe = get_kthread_trapframe(p, kt)) == 0) // check!
   {
     free_kthread(kt);
     release(&kt->thread_lock);
@@ -102,9 +102,9 @@ found:
 // kt->thread_lock must be held.
 void free_kthread(struct kthread *kt)
 {
-  if (kt->trapframe)
-    kfree((void *)kt->trapframe);
-  kt->trapframe = 0;
+  // if (kt->trapframe)
+  //   kfree((void *)kt->trapframe);
+  // kt->trapframe = 0;
   kt->tid = 0;
   // kt->name[0] = 0; could be done in the future
   kt->thread_chan = 0;

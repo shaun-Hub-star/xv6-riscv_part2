@@ -20,7 +20,7 @@
 //   uint64 s10;
 //   uint64 s11;
 // };
-
+extern void forkret(void);
 enum procstate
 {
   P_UNUSED,
@@ -35,9 +35,9 @@ struct proc
 
   // p->lock must be held when using these:
   enum procstate state; // Process state
-  int killed; // If non-zero, have been killed
-  int xstate; // Exit status to be returned to parent's wait
-  int pid;    // Process ID
+  int killed;           // If non-zero, have been killed
+  int xstate;           // Exit status to be returned to parent's wait
+  int pid;              // Process ID
 
   struct kthread kthread[NKT];       // kthread group table
   struct trapframe *base_trapframes; // data page for trampolines

@@ -15,7 +15,6 @@ struct proc *initproc;
 int nextpid = 1;
 struct spinlock pid_lock;
 
-extern void forkret(void);
 static void freeproc(struct proc *p);
 
 extern char trampoline[]; // trampoline.S
@@ -126,7 +125,6 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->tid_counter = 1;
-  alloc_kthread(p);
   p->state = P_USED;
 
   // Allocate a trapframe page.
@@ -136,6 +134,7 @@ found:
     release(&p->proc_lock);
     return 0;
   }
+  alloc_kthread(p);
 
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
@@ -156,6 +155,10 @@ static void
 freeproc(struct proc *p)
 {
   struct kthread *kt;
+  for (kt = p->kthread; kt < &p->kthread[NKT]; kt++)
+  {
+    free_kthread(kt);
+  }
   if (p->base_trapframes)
     kfree((void *)p->base_trapframes);
   p->base_trapframes = 0;
@@ -170,10 +173,7 @@ freeproc(struct proc *p)
   p->xstate = 0;
   p->state = P_UNUSED;
   p->tid_counter = 0;
-  for (kt = p->kthread; kt < &p->kthread[NKT]; kt++)
-  {
-    free_kthread(kt);
-  }
+
   // what about files?!?! and current directory
 }
 
@@ -397,6 +397,8 @@ void exit(int status)
 
   p->xstate = status;
   p->state = P_ZOMBIE;
+
+  release(&p->proc_lock); // added
   struct kthread *kt;
   for (kt = p->kthread; kt < &p->kthread[NKT]; kt++)
   {
@@ -407,7 +409,7 @@ void exit(int status)
   }
 
   release(&wait_lock);
-
+  acquire(&mykthread()->thread_lock); // added 4:15 28/04
   // Jump into the scheduler, never to return.
   sched();
   panic("zombie exit");
@@ -486,10 +488,10 @@ void scheduler(void)
 
     for (p = proc; p < &proc[NPROC]; p++)
     {
-      acquire(&p->proc_lock);
+      // acquire(&p->proc_lock); // shaun's comment, we might not need this.
       if (p->state == P_USED)
       {
-        aqcuire(&p->kthread[0].thread_lock);
+        acquire(&p->kthread[0].thread_lock);
 
         if (p->kthread[0].thread_state == T_RUNNABLE)
         {
@@ -503,9 +505,9 @@ void scheduler(void)
           // It should have changed its p->state before coming back.
           c->thread = 0; // fixme
         }
-        release(&p->kthread[0].thread_lock);
+        release(&p->kthread[0].thread_lock); // shaun's comment, we might not need this.
       }
-      release(&p->proc_lock);
+      // release(&p->proc_lock);
     }
   }
 }
@@ -537,13 +539,13 @@ void sched(void)
 }
 
 // Give up the CPU for one scheduling round.
-void yield(void)
+void yield(void) //??
 {
-  struct proc *p = myproc();
-  acquire(&p->lock);
-  p->state = RUNNABLE; // fixme
+  struct kthread *kt = mykthread();
+  acquire(&kt->thread_lock);
+  kt->thread_state = T_RUNNABLE; // fixme
   sched();
-  release(&p->lock);
+  release(&kt->thread_lock);
 }
 
 // A fork child's very first scheduling by scheduler()
@@ -553,7 +555,7 @@ void forkret(void)
   static int first = 1;
 
   // Still holding p->lock from scheduler.
-  release(&myproc()->lock);
+  release(&mykthread()->thread_lock); // change to relase(&mtkthread->thread_lock);
 
   if (first)
   {
@@ -571,7 +573,7 @@ void forkret(void)
 // Reacquires lock when awakened.
 void sleep(void *chan, struct spinlock *lk)
 {
-  struct proc *p = myproc();
+  struct kthread *kt = mykthread(); // change to kthread
 
   // Must acquire p->lock in order to
   // change p->state and then call sched.
@@ -580,20 +582,20 @@ void sleep(void *chan, struct spinlock *lk)
   // (wakeup locks p->lock),
   // so it's okay to release lk.
 
-  acquire(&p->lock); // DOC: sleeplock1
+  acquire(&kt->thread_lock); // DOC: sleeplock1
   release(lk);
 
   // Go to sleep.
-  p->chan = chan;
-  p->state = SLEEPING; // fixme
+  kt->thread_chan = chan;
+  kt->thread_state = T_SLEEPING; // fixme
 
   sched();
 
   // Tidy up.
-  p->chan = 0;
+  kt->thread_chan = 0;
 
   // Reacquire original lock.
-  release(&p->lock);
+  release(&kt->thread_lock);
   acquire(lk);
 }
 
@@ -602,17 +604,21 @@ void sleep(void *chan, struct spinlock *lk)
 void wakeup(void *chan)
 {
   struct proc *p;
-
+  struct kthread *kt;
   for (p = proc; p < &proc[NPROC]; p++)
   {
-    if (p != myproc())
+    for (kt = p->kthread; kt < &p->kthread[NKT]; kt++)
     {
-      acquire(&p->lock);
-      if (p->state == SLEEPING && p->chan == chan)
-      { // fixme
-        p->state = RUNNABLE;
+      if (kt != mykthread())
+      {
+
+        acquire(&kt->thread_lock);
+        if (kt->thread_state == T_SLEEPING && kt->thread_chan == chan)
+        { // fixme
+          kt->thread_state = T_RUNNABLE;
+        }
+        release(&kt->thread_lock);
       }
-      release(&p->lock);
     }
   }
 }
@@ -630,7 +636,7 @@ int kill(int pid)
     if (p->pid == pid)
     {
       p->killed = 1;
-      for (struct kthread *kt = p->kthread; kt < &p->kthread[NKT]; kt++)
+      for (kt = p->kthread; kt < &p->kthread[NKT]; kt++)
       {
         acquire(&kt->thread_lock);
         kt->thread_killed = 1;
@@ -649,20 +655,20 @@ int kill(int pid)
   return -1;
 }
 
-void setkilled(struct proc *p)
+void setkilled(struct proc *p) //???? we think it should be with thread
 {
-  acquire(&p->lock);
+  acquire(&p->proc_lock);
   p->killed = 1;
-  release(&p->lock);
+  release(&p->proc_lock);
 }
 
-int killed(struct proc *p)
+int killed(struct proc *p) //???? we think it should be with thread
 {
   int k;
 
-  acquire(&p->lock);
+  acquire(&p->proc_lock);
   k = p->killed;
-  release(&p->lock);
+  release(&p->proc_lock);
   return k;
 }
 
