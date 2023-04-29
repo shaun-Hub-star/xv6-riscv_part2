@@ -50,10 +50,10 @@ void usertrap(void)
   if (r_scause() == 8)
   {
     // system call
-    if (killed_thread(kt))
-      kthread_exit(-1);
     if (killed(p))
       exit(-1);
+    else if (killed_thread(kt))
+      kthread_exit(-1);
 
     // sepc points to the ecall instruction,
     // but we want to return to the next instruction.
@@ -76,10 +76,16 @@ void usertrap(void)
     setkilled(p);
     setkilled_thread(kt);
   }
-  if (killed_thread(kt))
-    kthread_exit(-1);
+  // if (!killed(p) && killed_thread(kt))
+  // {
+  //   printf("something is fishy: %d\n", killed_thread(kt));
+  // }
+
   if (killed(p))
     exit(-1);
+
+  else if (killed_thread(kt))
+    kthread_exit(-1); // this is the problem
 
   // give up the CPU if this is a timer interrupt.
   if (which_dev == 2)
