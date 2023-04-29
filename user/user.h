@@ -23,15 +23,14 @@ char *sbrk(int);
 int sleep(int);
 int uptime(void);
 // kthread
-
-int kthread_create(void);
+int kthread_create(void *(*start_finct)(), void *stack, uint stack_size);
 int kthread_id(void);
-int kthread_kill(void);
-void kthread_exit(void);
-int kthread_join(void)
+int kthread_kill(int);
+void kthread_exit(int);
+int kthread_join(int, int *);
 
-    // ulib.c
-    int stat(const char *, struct stat *);
+// ulib.c
+int stat(const char *, struct stat *);
 char *strcpy(char *, const char *);
 void *memmove(void *, const void *, int);
 char *strchr(const char *, char c);

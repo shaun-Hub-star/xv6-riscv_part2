@@ -114,23 +114,70 @@ void free_kthread(struct kthread *kt)
   // should not free the stack!
 }
 
-int kthread_create(void)
+int kthread_create(void *(*start_func)(), void *stack, uint stack_size)
 {
-  return -1;
+  int i, tid;
+  struct kthread *nkt; // new proc
+  struct proc *p = myproc();
+  struct kthread *kt = mykthread(); // calling thread
+
+  // Allocate process.
+  if ((nkt = alloc_kthread(p)) == 0)
+  {
+    return -1;
+  }
+
+  // change kstack
+  nkt->kstack = (uint64)stack; // this is error
+
+  // change epc
+  nkt->trapframe->epc = (uint64)start_func; // this is unknown
+
+  // copy context
+  nkt->thread_context = kt->thread_context;
+  // set to RUNNABLE
+
+  // sp
+  nkt->trapframe->sp = nkt->kstack + stack_size; // user stack pointer
+
+  nkt->thread_state = T_RUNNABLE;
+  tid = nkt->tid;
+  release(&nkt->thread_lock);
+
+  return tid;
 }
 int kthread_id(void)
 {
   return mykthread()->tid;
 }
-int kthread_kill(void)
+int kthread_kill(int tid)
 {
+  struct proc *p = myproc;
+  struct kthread *kt;
+  for (kt = p->kthread; kt < &p->kthread[NKT]; kt++)
+  {
+    acquire(&kt->thread_lock);
+    if (kt->tid == tid)
+    {
+      kt->thread_killed = 1;
+
+      if (kt->thread_state == T_SLEEPING)
+      {
+        kt->thread_state = T_RUNNABLE;
+      }
+
+      release(&kt->thread_lock);
+      return 0;
+    }
+    release(&kt->thread_lock);
+  }
   return -1;
 }
-void kthread_exit(void)
+void kthread_exit(int status)
 {
   return;
 }
-int kthread_join(void)
+int kthread_join(int tid, int *status) // check if killed
 {
   return -1;
 }

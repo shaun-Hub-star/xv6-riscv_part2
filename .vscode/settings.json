@@ -4,6 +4,7 @@
         "riscv.h": "c",
         "defs.h": "c",
         "uthread.h": "c",
-        "proc.h": "c"
+        "proc.h": "c",
+        "cstdlib": "c"
     },
 }

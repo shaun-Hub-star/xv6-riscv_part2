@@ -51,7 +51,7 @@ void usertrap(void)
   {
     // system call
 
-    if (killed(p))
+    if (killed(p)) // change to kt
       exit(-1);
 
     // sepc points to the ecall instruction,

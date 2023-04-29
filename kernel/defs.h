@@ -113,11 +113,11 @@ struct kthread *mykthread();
 int alloctid(struct proc *p);
 struct kthread *alloc_kthread(struct proc *p);
 void free_kthread(struct kthread *kt);
-int kthread_create(void);
+int kthread_create(void *(*start_finct)(), void *stack, uint stack_size);
 int kthread_id(void);
-int kthread_kill(void);
-void kthread_exit(void);
-int kthread_join(void);
+int kthread_kill(int tid);
+void kthread_exit(int status);
+int kthread_join(int tid, int *status);
 
 // swtch.S
 void swtch(struct context *, struct context *);

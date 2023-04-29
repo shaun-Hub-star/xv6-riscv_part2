@@ -540,19 +540,4 @@ sys_pipe(void)
   return 0;
 }
 
-uint64 sys_kthread_create(void)
-{
-}
-uint64 sys_kthread_id(void)
-{
-  return kthread_id();
-}
-uint64 sys_kthread_kill(void)
-{
-}
-uint64 sys_kthread_exit(void)
-{
-}
-uint64 sys_kthread_join(void)
-{
-}
+
