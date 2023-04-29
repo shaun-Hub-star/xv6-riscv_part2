@@ -116,7 +116,7 @@ void free_kthread(struct kthread *kt)
 
 int kthread_create(void *(*start_func)(), void *stack, uint stack_size)
 {
-  int i, tid;
+  int tid;
   struct kthread *nkt; // new proc
   struct proc *p = myproc();
   struct kthread *kt = mykthread(); // calling thread
@@ -136,11 +136,11 @@ int kthread_create(void *(*start_func)(), void *stack, uint stack_size)
   // copy context
   nkt->thread_context = kt->thread_context;
   // set to RUNNABLE
+  nkt->thread_state = T_RUNNABLE;
 
   // sp
   nkt->trapframe->sp = nkt->kstack + stack_size; // user stack pointer
 
-  nkt->thread_state = T_RUNNABLE;
   tid = nkt->tid;
   release(&nkt->thread_lock);
 
@@ -152,7 +152,7 @@ int kthread_id(void)
 }
 int kthread_kill(int tid)
 {
-  struct proc *p = myproc;
+  struct proc *p = myproc();
   struct kthread *kt;
   for (kt = p->kthread; kt < &p->kthread[NKT]; kt++)
   {
@@ -175,9 +175,56 @@ int kthread_kill(int tid)
 }
 void kthread_exit(int status)
 {
-  return;
+  struct proc *p = myproc();
+  struct kthread *kt;
+  acquire(&p->proc_lock);
+  mykthread()->thread_state = T_ZOMBIE;
+  mykthread()->thread_xstate = status;
+  int last = 1;
+
+  for (kt = p->kthread; kt < &p->kthread[NKT]; kt++)
+  {
+
+    if ((kt->thread_state != T_ZOMBIE) && (kt->thread_state != T_UNUSED))
+    {
+      last = 0;
+      break;
+    }
+  }
+  release(&p->proc_lock);
+
+  if (last)
+  {
+    exit(0);
+    return;
+  }
+  acquire(&mykthread()->thread_lock);
+  // Jump into the scheduler, never to return.
+  sched();
+  panic("zombie exit");
 }
+
 int kthread_join(int tid, int *status) // check if killed
 {
-  return -1;
+  struct proc *p = myproc();
+  struct kthread *waiting_thread;
+  waiting_thread = &p->kthread[tid];
+  for (;;)
+  {
+    acquire(&waiting_thread->thread_lock);
+
+    if (waiting_thread->thread_state == T_ZOMBIE)
+    {
+      if (status != 0 && copyout(p->pagetable, (uint64)status, (char *)&waiting_thread->thread_xstate,
+                                 sizeof(waiting_thread->thread_xstate)) < 0)
+      {
+        release(&waiting_thread->thread_lock);
+        return -1;
+      }
+      free_kthread(waiting_thread); // we added
+      release(&waiting_thread->thread_lock);
+      return 0;
+    }
+    release(&waiting_thread->thread_lock);
+  }
 }

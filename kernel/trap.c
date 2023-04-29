@@ -50,8 +50,9 @@ void usertrap(void)
   if (r_scause() == 8)
   {
     // system call
-
-    if (killed(p)) // change to kt
+    if (killed_thread(kt))
+      kthread_exit(-1);
+    if (killed(p))
       exit(-1);
 
     // sepc points to the ecall instruction,
@@ -73,8 +74,10 @@ void usertrap(void)
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
     setkilled(p);
+    setkilled_thread(kt);
   }
-
+  if (killed_thread(kt))
+    kthread_exit(-1);
   if (killed(p))
     exit(-1);
 

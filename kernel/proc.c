@@ -403,7 +403,7 @@ void exit(int status)
   {
     acquire(&kt->thread_lock);
     kt->thread_state = T_ZOMBIE;
-    kt->thread_xstate = status; // might be not necesery
+    // kt->thread_xstate = status; // might be not necesery
     release(&kt->thread_lock);
   }
 
@@ -479,6 +479,7 @@ void scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
+  struct kthread *kt;
   c->thread = 0;
   for (;;)
   {
@@ -487,26 +488,29 @@ void scheduler(void)
 
     for (p = proc; p < &proc[NPROC]; p++)
     {
-      // acquire(&p->proc_lock); // shaun's comment, we might not need this.
-      if (p->state == P_USED)
+      for (kt = p->kthread; kt < &p->kthread[NKT]; kt++)
       {
-        acquire(&p->kthread[0].thread_lock);
-
-        if (p->kthread[0].thread_state == T_RUNNABLE)
+        // acquire(&p->proc_lock); // shaun's comment, we might not need this.
+        if (p->state == P_USED)
         {
-          // Switch to chosen process.  It is the process's job
-          // to release its lock and then reacquire it
-          // before jumping back to us.
-          p->kthread[0].thread_state = T_RUNNING; // fixme
-          c->thread = &p->kthread[0];
-          swtch(&c->t_context, &p->kthread[0].thread_context); // fixme
-          // Process is done running for now.
-          // It should have changed its p->state before coming back.
-          c->thread = 0; // fixme
+          acquire(&kt->thread_lock);
+
+          if (kt->thread_state == T_RUNNABLE)
+          {
+            // Switch to chosen process.  It is the process's job
+            // to release its lock and then reacquire it
+            // before jumping back to us.
+            kt->thread_state = T_RUNNING; // fixme
+            c->thread = kt;
+            swtch(&c->t_context, &kt->thread_context); // fixme
+            // Process is done running for now.
+            // It should have changed its p->state before coming back.
+            c->thread = 0; // fixme
+          }
+          release(&kt->thread_lock); // shaun's comment, we might not need this.
         }
-        release(&p->kthread[0].thread_lock); // shaun's comment, we might not need this.
+        // release(&p->proc_lock);
       }
-      // release(&p->proc_lock);
     }
   }
 }
@@ -660,7 +664,12 @@ void setkilled(struct proc *p) //???? we think it should be with thread
   p->killed = 1;
   release(&p->proc_lock);
 }
-
+void setkilled_thread(struct kthread *kt) //???? we think it should be with thread
+{
+  acquire(&kt->thread_lock);
+  kt->thread_killed = 1;
+  release(&kt->thread_lock);
+}
 int killed(struct proc *p) //???? we think it should be with thread
 {
   int k;
@@ -668,6 +677,14 @@ int killed(struct proc *p) //???? we think it should be with thread
   acquire(&p->proc_lock);
   k = p->killed;
   release(&p->proc_lock);
+  return k;
+}
+int killed_thread(struct kthread *kt) //???? we think it should be with thread
+{
+  int k;
+  acquire(&kt->thread_lock);
+  k = kt->thread_killed;
+  release(&kt->thread_lock);
   return k;
 }
 

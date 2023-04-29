@@ -59,7 +59,7 @@ sys_sleep(void)
   ticks0 = ticks;
   while (ticks - ticks0 < n)
   {
-    if (killed(myproc()))
+    if (killed(myproc()) || killed_thread(mykthread())) // we addded this magic
     {
       release(&tickslock);
       return -1;
@@ -93,6 +93,7 @@ sys_uptime(void)
 }
 uint64 sys_kthread_create(void)
 {
+  return -1;
 }
 uint64 sys_kthread_id(void)
 {
@@ -100,10 +101,13 @@ uint64 sys_kthread_id(void)
 }
 uint64 sys_kthread_kill(void)
 {
+  return -1;
 }
 uint64 sys_kthread_exit(void)
 {
+  return -1;
 }
 uint64 sys_kthread_join(void)
 {
+  return -1;
 }

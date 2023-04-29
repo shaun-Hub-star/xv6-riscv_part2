@@ -8,7 +8,7 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
-
+struct kthread;
 // bio.c
 void binit(void);
 struct buf *bread(uint, uint);
@@ -91,7 +91,10 @@ pagetable_t proc_pagetable(struct proc *);
 void proc_freepagetable(pagetable_t, uint64);
 int kill(int);
 int killed(struct proc *);
+int killed_thread(struct kthread *);
 void setkilled(struct proc *);
+void setkilled_thread(struct kthread *);
+
 struct cpu *mycpu(void);
 struct cpu *getmycpu(void);
 struct proc *myproc();
