@@ -39,7 +39,7 @@ int uthread_yield_internal()
     {
         modI = i % MAX_UTHREADS;
         // printf("Thread num:%d   state:%d\n", modI, uthreads[modI].state);
-        if (uthreads[modI].state == RUNNABLE && uthreads[modI].priority > maxPriority)
+        if (uthreads[modI].state == RUNNABLE && (int)uthreads[modI].priority > maxPriority)
         {
             minPos = modI;
             maxPriority = uthreads[modI].priority;
@@ -82,7 +82,7 @@ int uthread_start_all() // need to init my_thread
     int minPos = -1, maxPriority = -1;
     for (i = 0; i < MAX_UTHREADS; i++)
     {
-        if (uthreads[i].state == RUNNABLE && uthreads[i].priority > maxPriority)
+        if (uthreads[i].state == RUNNABLE && ((int)uthreads[i].priority > maxPriority))
         {
             minPos = i;
             maxPriority = uthreads[i].priority;
