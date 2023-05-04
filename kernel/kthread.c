@@ -195,7 +195,7 @@ void kthread_exit(int status)
 
   if (last)
   {
-    exit(0);
+    exit(status);
     return;
   }
   acquire(&mykthread()->thread_lock);

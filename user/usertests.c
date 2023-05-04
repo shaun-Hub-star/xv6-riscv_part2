@@ -2952,6 +2952,7 @@ volatile enum sched_priority x;
 
 void uthread_a_start_func(void)
 {
+  printf("TOMER in uthread_a_start_func\n");
   if (x != MEDIUM)
   {
     printf("sched policy failed\n");
@@ -2973,6 +2974,7 @@ void uthread_a_start_func(void)
 
 void uthread_b_start_func(void)
 {
+  printf("TOMER in uthread_b_start_func\n");
   for (int i = 0; i < 10; i++)
   {
     sleep(10); // simulate work
