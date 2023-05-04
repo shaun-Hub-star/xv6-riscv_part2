@@ -399,16 +399,24 @@ void exit(int status)
 
   release(&p->proc_lock); // added
   struct kthread *kt;
+  struct kthread *me = mykthread();
   for (kt = p->kthread; kt < &p->kthread[NKT]; kt++)
   {
-    acquire(&kt->thread_lock);
-    kt->thread_state = T_ZOMBIE;
-    // kt->thread_xstate = status; // might be not necesery
-    release(&kt->thread_lock);
+    if (me != kt && kthread_kill(kt->tid) != -1) // we verify that each thread is killed
+      kthread_join(kt->tid, 0);
+    // kt->thread_state = T_ZOMBIE;
+    //  kt->thread_xstate = status; // might be not necesery
   }
+  acquire(&me->thread_lock);
+  me->thread_state = T_ZOMBIE;
+  me->thread_xstate = status;
+  release(&me->thread_lock);
 
   release(&wait_lock);
   acquire(&mykthread()->thread_lock); // added 4:15 28/04
+
+  // maybe free is needed on the current thread
+
   // Jump into the scheduler, never to return.
   sched();
   panic("zombie exit");

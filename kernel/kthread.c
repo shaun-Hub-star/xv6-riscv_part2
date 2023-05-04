@@ -157,7 +157,7 @@ int kthread_kill(int tid)
   for (kt = p->kthread; kt < &p->kthread[NKT]; kt++)
   {
     acquire(&kt->thread_lock);
-    if (kt->tid == tid)
+    if (kt->tid == tid && kt->thread_state != T_UNUSED && kt->thread_state != T_ZOMBIE)
     {
       kt->thread_killed = 1;
 
@@ -221,7 +221,7 @@ int kthread_join(int tid, int *status) // check if killed
         release(&waiting_thread->thread_lock);
         return -1;
       }
-      free_kthread(waiting_thread); // we added
+      free_kthread(waiting_thread); // we added so only if other thread join to tid he will be free (like wait)
       release(&waiting_thread->thread_lock);
       return 0;
     }
