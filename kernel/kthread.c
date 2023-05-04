@@ -119,38 +119,37 @@ int kthread_create(void *(*start_func)(), void *stack, uint stack_size)
   int tid;
   struct kthread *nkt; // new proc
   struct proc *p = myproc();
-  struct kthread *kt = mykthread(); // calling thread
+  // struct kthread *kt = mykthread(); // calling thread
 
   // Allocate process.
   if ((nkt = alloc_kthread(p)) == 0)
   {
     return -1;
   }
-
-  // change kstack
-  nkt->kstack = (uint64)stack; // this is error
-
   // change epc
   nkt->trapframe->epc = (uint64)start_func; // this is unknown
 
   // copy context
-  nkt->thread_context = kt->thread_context;
+  // nkt->thread_context = kt->thread_context;
+
   // set to RUNNABLE
   nkt->thread_state = T_RUNNABLE;
 
   // sp
-  nkt->trapframe->sp = nkt->kstack + stack_size; // user stack pointer
+  nkt->trapframe->sp = (uint64)stack + (uint64)stack_size; // user stack pointer TODO: maybe need -1
 
   tid = nkt->tid;
+
   release(&nkt->thread_lock);
 
   return tid;
 }
+
 int kthread_id(void)
 {
   return mykthread()->tid;
 }
-int kthread_kill(int tid)
+int kthread_kill(int tid) // maybe need to add p lock
 {
   struct proc *p = myproc();
   struct kthread *kt;
@@ -173,7 +172,7 @@ int kthread_kill(int tid)
   }
   return -1;
 }
-void kthread_exit(int status)
+void kthread_exit(int status) // bug bug we need to lock thread
 {
   struct proc *p = myproc();
   struct kthread *kt;
@@ -185,7 +184,7 @@ void kthread_exit(int status)
   for (kt = p->kthread; kt < &p->kthread[NKT]; kt++)
   {
 
-    if ((kt->thread_state != T_ZOMBIE) && (kt->thread_state != T_UNUSED))
+    if ((kt->thread_state != T_ZOMBIE) && (kt->thread_state != T_UNUSED) && (kt->thread_state != T_USED)) // added used
     {
       last = 0;
       break;
@@ -207,10 +206,34 @@ void kthread_exit(int status)
 int kthread_join(int tid, int *status) // check if killed
 {
   struct proc *p = myproc();
-  struct kthread *waiting_thread;
-  waiting_thread = &p->kthread[tid];
+  struct kthread *kt;
+  struct kthread *waiting_thread = 0;
+  // waiting_thread = &p->kthread[tid];
+
+  for (kt = p->kthread; kt < &p->kthread[NKT]; kt++)
+  {
+    if (kt->tid == tid)
+      waiting_thread = kt;
+  }
+  if (!waiting_thread)
+  {
+    printf("kthread_join :no thread Id exist\n");
+    return -1;
+  }
+
   for (;;)
   {
+
+    // for (kt = p->kthread; kt < &p->kthread[NKT];kt++)
+    // {
+    //   acquire(&kt->thread_lock);
+
+    //   if(kt->tid==tid)
+    //   {
+
+    //   }
+    // }
+
     acquire(&waiting_thread->thread_lock);
 
     if (waiting_thread->thread_state == T_ZOMBIE)

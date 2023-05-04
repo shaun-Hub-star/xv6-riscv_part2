@@ -93,7 +93,15 @@ sys_uptime(void)
 }
 uint64 sys_kthread_create(void)
 {
-  return -1;
+  uint64 start_func;
+  uint64 stack;
+  int stack_size;
+
+  argaddr(0, &start_func);
+  argaddr(1, &stack);
+  argint(2, &stack_size);
+
+  return kthread_create((void *(*)())start_func, (void *)stack, stack_size);
 }
 uint64 sys_kthread_id(void)
 {
@@ -101,13 +109,24 @@ uint64 sys_kthread_id(void)
 }
 uint64 sys_kthread_kill(void)
 {
-  return -1;
+  int kill_id;
+  argint(0, &kill_id);
+  return kthread_kill(kill_id);
 }
 uint64 sys_kthread_exit(void)
 {
-  return -1;
+  int status;
+  argint(0, &status);
+  kthread_exit(status);
+  return 0;
 }
 uint64 sys_kthread_join(void)
 {
-  return -1;
+  int ktid;
+  uint64 status;
+
+  argint(0, &ktid);
+  argaddr(1, &status);
+
+  return kthread_join(ktid, (void *)status);
 }
