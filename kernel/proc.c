@@ -557,7 +557,7 @@ void forkret(void)
 {
   static int first = 1;
 
-  // Still holding p->lock from scheduler.
+  // Still holding k->lock from scheduler.
   release(&mykthread()->thread_lock); // change to relase(&mtkthread->thread_lock);
 
   if (first)
