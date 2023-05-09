@@ -3006,38 +3006,32 @@ void kthread_start_func(void)
 
 void klttest()
 {
-  printf("zero\n");
   void *stack_a = malloc(4096);
   void *stack_b = malloc(4096);
-  printf("first\n");
   int kt_a = kthread_create((void *(*)())kthread_start_func, stack_a, 4096);
   if (kt_a <= 0)
   {
     printf("kthread_create failed\n");
     exit(1);
   }
-  printf("second\n");
   int kt_b = kthread_create((void *(*)())kthread_start_func, stack_b, 4096);
   if (kt_a <= 0)
   {
     printf("kthread_create failed\n");
     exit(1);
   }
-  printf("num 3\n");
   int joined = kthread_join(kt_a, 0);
   if (joined != 0)
   {
     printf("kthread_join failed\n");
     exit(1);
   }
-  printf("num 4\n");
   joined = kthread_join(kt_b, 0);
   if (joined != 0)
   {
     printf("kthread_join failed\n");
     exit(1);
   }
-  printf("num 5\n");
 
   free((void *)stack_a);
   free((void *)stack_b);

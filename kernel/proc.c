@@ -124,7 +124,10 @@ allocproc(void)
 
 found:
   p->pid = allocpid();
+  acquire(&p->tid_lock);
   p->tid_counter = 1;
+  release(&p->tid_lock);
+
   p->state = P_USED;
 
   // Allocate a trapframe page.
@@ -134,7 +137,6 @@ found:
     release(&p->proc_lock);
     return 0;
   }
-  alloc_kthread(p);
 
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
@@ -144,6 +146,7 @@ found:
     release(&p->proc_lock);
     return 0;
   }
+  alloc_kthread(p);
 
   return p;
 }
@@ -299,6 +302,7 @@ int fork(void)
   if (uvmcopy(p->pagetable, np->pagetable, p->sz) < 0)
   {
     freeproc(np);
+    release(&(np->kthread[0].thread_lock));
     release(&np->proc_lock);
     return -1;
   }
@@ -332,13 +336,16 @@ int fork(void)
   release(&wait_lock);
 
   // already aquired by the allocproc() because we have only one thread
+  acquire(&np->proc_lock);
 
   acquire(&np->kthread[0].thread_lock);
 
   np->kthread[0].thread_state = T_RUNNABLE;
+  np->state = P_USED;
 
   release(&np->kthread[0].thread_lock);
-
+  release(&np->proc_lock);
+  printf("calling fork: %d -> son %d\n", p->pid, np->pid);
   return pid;
 }
 
@@ -496,11 +503,12 @@ void scheduler(void)
 
     for (p = proc; p < &proc[NPROC]; p++)
     {
-      for (kt = p->kthread; kt < &p->kthread[NKT]; kt++)
+      if (p->state == P_USED)
       {
-        // acquire(&p->proc_lock); // shaun's comment, we might not need this.
-        if (p->state == P_USED)
+        for (kt = p->kthread; kt < &p->kthread[NKT]; kt++)
         {
+          // acquire(&p->proc_lock); // shaun's comment, we might not need this.
+
           acquire(&kt->thread_lock);
 
           if (kt->thread_state == T_RUNNABLE)
@@ -516,8 +524,9 @@ void scheduler(void)
             c->thread = 0; // fixme
           }
           release(&kt->thread_lock); // shaun's comment, we might not need this.
+
+          // release(&p->proc_lock);
         }
-        // release(&p->proc_lock);
       }
     }
   }
