@@ -31,6 +31,7 @@ int exec(char *path, char **argv)
   struct proc *p = myproc();
   struct kthread *kt = mykthread();
 
+
   begin_op();
 
   if ((ip = namei(path)) == 0)
@@ -139,7 +140,6 @@ int exec(char *path, char **argv)
     if (me != tokill && kthread_kill(tokill->tid) != -1) // we verify that each thread is killed
       kthread_join(tokill->tid, 0);
   }
-
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
 bad:

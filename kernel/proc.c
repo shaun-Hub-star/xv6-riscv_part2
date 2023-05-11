@@ -49,11 +49,11 @@ void proc_mapstacks(pagetable_t kpgtbl)
 void procinit(void)
 {
   struct proc *p;
-
   initlock(&pid_lock, "nextpid");
   initlock(&wait_lock, "wait_lock");
   for (p = proc; p < &proc[NPROC]; p++)
   {
+
     initlock(&p->proc_lock, "proc");
     p->state = P_UNUSED;
     kthreadinit(p);
@@ -129,7 +129,6 @@ found:
   release(&p->tid_lock);
 
   p->state = P_USED;
-
   // Allocate a trapframe page.
   if ((p->base_trapframes = (struct trapframe *)kalloc()) == 0)
   {
@@ -345,7 +344,6 @@ int fork(void)
 
   release(&np->kthread[0].thread_lock);
   release(&np->proc_lock);
-  printf("calling fork: %d -> son %d\n", p->pid, np->pid);
   return pid;
 }
 

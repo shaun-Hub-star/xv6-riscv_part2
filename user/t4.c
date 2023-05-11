@@ -20,7 +20,7 @@ void *fib()
 void *exectest()
 {
     char *command = "echo";
-    char *argv[] = {"echo", "Success!\n", 0};
+    char *argv[] = {"echo", "$$$$$$$$$$$$$$$\n", 0};
     exec(command, argv);
     fprintf(2, "[ERROR] kthread %d has returned\n", kthread_id());
     return 0;
@@ -29,9 +29,9 @@ void *exectest()
 int main(int argc, char **argv)
 {
     printf("This test will try to call for exec from 3 different threads\nExpected behvaiour: printing Success via a call to exec to run the command echo Success\n");
-    void *memory = malloc(4000);
+    void *memory1 = malloc(4000);
     void *memory2 = malloc(4000);
-    kthread_create(exectest, memory, 4000);
+    kthread_create(exectest, memory1, 4000);
     kthread_create(exectest, memory2, 4000);
     exectest();
     fprintf(2, "[ERROR] kthread %d has returned\n", kthread_id());

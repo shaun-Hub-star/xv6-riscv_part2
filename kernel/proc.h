@@ -56,4 +56,5 @@ struct proc
   // new
   struct spinlock tid_lock;
   int tid_counter;
+
 };

@@ -24,21 +24,17 @@ You just keep me hanging on\n\
 You just keep me hanging on\n");
     exit(1);
 }
-void *thread1()
+void *thread()
 {
     int status;
-    kthread_exit(1);
-    return 0;
-    int pid = fork();
-    printf("PID: %d\n", pid);
-    if (pid == 0)
+    int pid;
+    if ((pid = fork()) == 0)
     {
         fprintf(2, "child's PID: %d\n", getpid());
         chld();
     }
     else
     {
-
         if (pid == getpid())
         {
             fprintf(2, "[ERROR] the new process is the same as the other process\n");
@@ -60,11 +56,13 @@ int main(int argc, char **argv)
     the child prints the lyrics of the song Perfect Day by Lou Reed and exit\n\n");
     fprintf(2, "father PID: %d\n", getpid());
     void *stack = malloc(4000);
+    int thread_status;
     int tid;
-    if ((tid = kthread_create(thread1, stack, 4000)) == -1)
+    if ((tid = kthread_create(thread, stack, 4000)) == -1)
     {
         fprintf(2, "[ERROR] couldn't start a thread\n");
         return 1;
     }
+    kthread_join(tid, &thread_status);
     return 0;
 }
