@@ -2,39 +2,22 @@
 #include "kernel/stat.h"
 #include "user/user.h"
 
-void *fib()
-{
-    int t1 = 0;
-    int t2 = 1;
-    int nextTerm = t1 + t2;
-    for (int i = 0; i < 100; i++)
-    {
-        t1 = t2;
-        t2 = nextTerm;
-        nextTerm = t1 + t2;
-    }
-    printf("fib 100 = %d\n", nextTerm);
-    kthread_exit(0);
-    return 0;
-}
 void *exectest()
 {
+    int exitStatus = 0;
     char *command = "echo";
-    char *argv[] = {"echo", "$$$$$$$$$$$$$$$\n", 0};
+    char *argv[] = {"echo", "exec test", 0};
     exec(command, argv);
-    fprintf(2, "[ERROR] kthread %d has returned\n", kthread_id());
-    return 0;
+    exitStatus = 1; // clear warning
+    printf("exec failed with status: %d\n", exitStatus);
+    return 0; // warning
 }
-
 int main(int argc, char **argv)
 {
-    printf("This test will try to call for exec from 3 different threads\nExpected behvaiour: printing Success via a call to exec to run the command echo Success\n");
-    void *memory1 = malloc(4000);
-    void *memory2 = malloc(4000);
-    kthread_create(exectest, memory1, 4000);
-    kthread_create(exectest, memory2, 4000);
-    exectest();
-    fprintf(2, "[ERROR] kthread %d has returned\n", kthread_id());
-
-    return 1;
+    int kernelStackSize = 4096;
+    void *kernelStack = malloc(kernelStackSize);
+    kthread_create(exectest, kernelStack, kernelStackSize);
+    kthread_exit(0);
+    printf("should go back to terminal\n");
+    return 0;
 }
