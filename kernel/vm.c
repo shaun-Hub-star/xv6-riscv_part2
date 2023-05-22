@@ -16,6 +16,8 @@ extern char etext[]; // kernel.ld sets this to end of kernel code.
 
 extern char trampoline[]; // trampoline.S
 
+int swapPages(pagetable_t pagetable, uint64 hardisk, uint64 memory);
+
 // Make a direct-map page table for the kernel.
 pagetable_t
 kvmmake(void)
@@ -247,7 +249,7 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
   char *mem;
   uint64 a;
   struct proc *p = myproc();
-  int internal_counter = 0;
+
   int i;
   if (newsz < oldsz)
     return oldsz;
@@ -255,8 +257,8 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
   oldsz = PGROUNDUP(oldsz);
   for (a = oldsz; a < newsz; a += PGSIZE)
   {
-    internal_counter++;
-    if (p->counter_user_page + internal_counter >= MAX_PSYC_PAGES && p->counter_user_page + internal_counter < MAX_TOTAL_PAGES)
+
+    if (p->counter_user_page >= MAX_PSYC_PAGES && p->counter_user_page < MAX_TOTAL_PAGES)
     {
       char temp_buffer[PGSIZE];
       memset((void *)temp_buffer, 0, PGSIZE);
@@ -274,9 +276,10 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
           break;
         }
       }
+      p->counter_user_page++;
       continue;
     }
-    else if (p->counter_user_page + internal_counter >= MAX_TOTAL_PAGES)
+    else if (p->counter_user_page >= MAX_TOTAL_PAGES)
     {
       uvmdealloc(pagetable, a, oldsz); // we don't perform kfree because mappages succeeded
       return 0;
@@ -296,8 +299,8 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
       uvmdealloc(pagetable, a, oldsz);
       return 0;
     }
+    p->counter_user_page++;
   }
-  p->counter_user_page += internal_counter;
 
   return newsz;
 }
@@ -316,6 +319,7 @@ uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
   {
     int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
     uvmunmap(pagetable, PGROUNDUP(newsz), npages, 1);
+    myproc()->counter_user_page -= npages; // we added
   }
 
   return newsz;

@@ -187,6 +187,8 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+
+  removeSwapFile(p);
 }
 
 // Create a user page table for a given process, with no user memory,
