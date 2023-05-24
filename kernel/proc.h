@@ -92,7 +92,7 @@ enum procstate
   ZOMBIE
 };
 
-enum file_entry_status
+enum page_entry_status
 {
   INACTIVE,
   ACTIVE
@@ -101,7 +101,15 @@ enum file_entry_status
 struct file_entry
 {
   uint virtual_address;
-  enum file_entry_status status;
+  enum page_entry_status status;
+};
+
+struct physical_page
+{
+  enum page_entry_status status;
+  uint virtual_address;
+  uint counter;
+  uint age;
 };
 
 #define MAX_FILE_ENTRIES 16
@@ -131,6 +139,9 @@ struct proc
   char name[16];               // Process name (debugging)
 
   struct file *swapFile;
-  struct file_entry file_entries[MAX_FILE_ENTRIES]; // array of entries in swap file
-  uint counter_user_page;                           // count the number of user pages
+  struct file_entry file_entries[MAX_FILE_ENTRIES];    // array of entries in swap file excluding trapframe and trampline
+  struct physical_page physical_pages[MAX_PSYC_PAGES]; // array of physical pages excluding trapframe and trampline
+  uint counter_total_pages;                            // count the number of total pages
+  uint counter_physical_memory;                        // count the number of physical pages
+  uint64 global_age;                                   // global age counter
 };

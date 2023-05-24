@@ -5,6 +5,7 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "spinlock.h" //we added this
 #include "proc.h"
 #include "string.h" //we added this
 /*
@@ -75,6 +76,7 @@ int swapPages(pagetable_t pagetable, uint64 hardisk, uint64 memory, int swap)
 {
   int i;
   struct file_entry *file_entry;
+  struct proc *p = myproc();
   // find the file entry
   for (i = 0; i < MAX_FILE_ENTRIES; i++)
   {
@@ -87,7 +89,7 @@ int swapPages(pagetable_t pagetable, uint64 hardisk, uint64 memory, int swap)
   {
     return -1;
   }
-  file_entry = &myproc()->file_entries[i];
+  file_entry = &p->file_entries[i];
   file_entry->status = INACTIVE;
 
   pte_t *pte_from_disk = walk(pagetable, hardisk, 0);
@@ -100,7 +102,8 @@ int swapPages(pagetable_t pagetable, uint64 hardisk, uint64 memory, int swap)
     pte_t reset = (ZERO_64 | 0x3FF | (0x3FF << 53));
     *pte_from_disk = (reset & *pte_from_disk) | PA2PTE(pa);
     // read from the file
-    readFromSwapFile(pyproc(), (char *)pa, i * PGSIZE, PGSIZE);
+    readFromSwapFile(p, (char *)pa, i * PGSIZE, PGSIZE);
+    p->counter_physical_memory++;
   }
   else
   {
@@ -120,7 +123,29 @@ int swapPages(pagetable_t pagetable, uint64 hardisk, uint64 memory, int swap)
     *pte_from_memory |= PTE_PG;
     // reset the valid
     *pte_from_memory &= ~PTE_V;
+    // reset the pyscial pages
+    for (int i = 0; i < MAX_PSYC_PAGES; i++)
+    {
+      if (p->physical_pages[i].status == ACTIVE && p->physical_pages[i].virtual_address == memory)
+      {
+        p->physical_pages[i].status = INACTIVE;
+        p->physical_pages[i].virtual_address = 0;
+        p->physical_pages[i].age = 0;
+        break;
+      }
+    }
     // valid
+  }
+  for (int i = 0; i < MAX_PSYC_PAGES; i++)
+  {
+    if (p->physical_pages[i].status == INACTIVE)
+    {
+      p->physical_pages[i].status = ACTIVE;
+      p->physical_pages[i].virtual_address = hardisk;
+      p->physical_pages[i].age = p->global_age;
+      p->global_age++;
+      break;
+    }
   }
   *pte_from_disk |= PTE_V;
   // reset the PG flag
@@ -251,6 +276,7 @@ void uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
         if (p->file_entries[i].status == ACTIVE && p->file_entries[i].virtual_address == a)
         {
           p->file_entries[i].status = INACTIVE;
+          p->counter_total_pages--;
           break;
         }
       }
@@ -269,6 +295,18 @@ void uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
       kfree((void *)pa);
     }
     *pte = 0;
+    p->counter_total_pages--;
+    p->counter_physical_memory--;
+    for (int i = 0; i < MAX_PSYC_PAGES; i++)
+    {
+      if (p->physical_pages[i].status == ACTIVE && p->physical_pages[i].virtual_address == a)
+      {
+        p->physical_pages[i].status = INACTIVE;
+        p->physical_pages[i].virtual_address = 0;
+        p->physical_pages[i].age = 0;
+        break;
+      }
+    }
   }
 }
 
@@ -317,7 +355,7 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
   for (a = oldsz; a < newsz; a += PGSIZE)
   {
 
-    if (p->counter_user_page >= MAX_PSYC_PAGES && p->counter_user_page < MAX_TOTAL_PAGES)
+    if (p->counter_physical_memory >= MAX_PSYC_PAGES && p->counter_total_pages < MAX_TOTAL_PAGES)
     {
       char temp_buffer[PGSIZE];
       memset((void *)temp_buffer, 0, PGSIZE);
@@ -335,10 +373,10 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
           break;
         }
       }
-      p->counter_user_page++;
+      p->counter_total_pages++;
       continue;
     }
-    else if (p->counter_user_page >= MAX_TOTAL_PAGES)
+    else if (p->counter_total_pages >= MAX_TOTAL_PAGES)
     {
       uvmdealloc(pagetable, a, oldsz); // we don't perform kfree because mappages succeeded
       return 0;
@@ -358,7 +396,19 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
       uvmdealloc(pagetable, a, oldsz);
       return 0;
     }
-    p->counter_user_page++;
+    p->counter_physical_memory++;
+    for (int i = 0; i < MAX_PSYC_PAGES; i++)
+    {
+      if (p->physical_pages[i].status == INACTIVE)
+      {
+        p->physical_pages[i].status = ACTIVE;
+        p->physical_pages[i].virtual_address = a;
+        p->physical_pages[i].age = p->global_age;
+        p->global_age++;
+        break;
+      }
+    }
+    p->counter_total_pages++;
   }
 
   return newsz;
@@ -378,7 +428,6 @@ uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
   {
     int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
     uvmunmap(pagetable, PGROUNDUP(newsz), npages, 1);
-    myproc()->counter_user_page -= npages; // we added
   }
 
   return newsz;
@@ -422,17 +471,38 @@ void uvmfree(pagetable_t pagetable, uint64 sz)
 // physical memory.
 // returns 0 on success, -1 on failure.
 // frees any allocated pages on failure.
-int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
+int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz, struct proc *son)
 {
   pte_t *pte;
+  pte_t *son_pte;
   uint64 pa, i;
   uint flags;
   char *mem;
+  struct proc *dad = myproc();
 
   for (i = 0; i < sz; i += PGSIZE)
   {
     if ((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
+    if ((*pte & PTE_PG) && (*pte & PTE_V) == 0)
+    {
+      for (int j = 0; j < MAX_PSYC_PAGES; j++)
+      {
+        if (dad->file_entries[j].virtual_address == i)
+        {
+          son->file_entries[j].virtual_address = i;
+          son->file_entries[j].status = ACTIVE;
+          son_pte = walk(new, i, 1);
+          *son_pte = *son_pte | PTE_FLAGS(*pte);
+          char temp_buffer[PGSIZE];
+          memset((void *)temp_buffer, 0, PGSIZE);
+          readFromSwapFile(dad, temp_buffer, j * PGSIZE, PGSIZE);
+          writeToSwapFile(son, temp_buffer, j * PGSIZE, PGSIZE);
+          break;
+        }
+      }
+      continue;
+    }
     if ((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
@@ -444,6 +514,16 @@ int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     {
       kfree(mem);
       goto err;
+    }
+    for (int j = 0; j < MAX_PSYC_PAGES; j++)
+    {
+      if (dad->physical_pages[j].virtual_address == i)
+      {
+        son->physical_pages[j].virtual_address = i;
+        son->physical_pages[j].status = dad->physical_pages[j].status;
+        son->physical_pages[j].age = dad->physical_pages[j].age;
+        break;
+      }
     }
   }
   return 0;

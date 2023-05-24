@@ -66,5 +66,5 @@
 //   TRAMPOLINE (the same page as in the kernel)
 #define TRAPFRAME (TRAMPOLINE - PGSIZE)
 
-#define MAX_PSYC_PAGES 16
-#define MAX_TOTAL_PAGES 32
+#define MAX_PSYC_PAGES 14
+#define MAX_TOTAL_PAGES 30

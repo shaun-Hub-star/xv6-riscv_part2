@@ -127,19 +127,23 @@ found:
   p->pid = allocpid();
   p->state = USED;
 
-  // we initialize files properties
-  p->counter_user_page = 0;
   for (int i = 0; i < MAX_FILE_ENTRIES; i++)
   {
     p->file_entries[i].virtual_address = 0;
     p->file_entries[i].status = INACTIVE;
   }
+  // release lock
+  // release(&p->lock);// we added
   if (createSwapFile(p) == -1)
   {
     freeproc(p);
     release(&p->lock);
     return 0;
   }
+  char buffer[PGSIZE * MAX_FILE_ENTRIES];
+  memset(buffer, 0, sizeof(buffer));
+  writeToSwapFile(p, buffer, 0, sizeof(buffer));
+  // acquire(&p->lock);// we added
 
   // Allocate a trapframe page.
   if ((p->trapframe = (struct trapframe *)kalloc()) == 0)
@@ -157,7 +161,11 @@ found:
     release(&p->lock);
     return 0;
   }
-
+  // we initialize files properties
+  p->counter_total_pages = 0;
+  p->counter_physical_memory = 0;
+  p->global_age = 0;
+  memset(p->physical_pages, 0, sizeof(p->physical_pages[0]) * MAX_PSYC_PAGES); // this is working
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
@@ -187,6 +195,9 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+  p->counter_total_pages = 0;
+  p->counter_physical_memory = 0;
+  p->global_age = 0;
 
   removeSwapFile(p);
 }
@@ -311,7 +322,7 @@ int fork(void)
   }
 
   // Copy user memory from parent to child.
-  if (uvmcopy(p->pagetable, np->pagetable, p->sz) < 0)
+  if (uvmcopy(p->pagetable, np->pagetable, p->sz, np) < 0)
   {
     freeproc(np);
     release(&np->lock);
