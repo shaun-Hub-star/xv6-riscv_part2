@@ -6,7 +6,7 @@
 #include "defs.h"
 #include "fs.h"
 #include "proc.h"
-
+#include "string.h" //we added this
 /*
  * the kernel's page table.
  */
@@ -16,7 +16,7 @@ extern char etext[]; // kernel.ld sets this to end of kernel code.
 
 extern char trampoline[]; // trampoline.S
 
-int swapPages(pagetable_t pagetable, uint64 hardisk, uint64 memory);
+int swapPages(pagetable_t pagetable, uint64 hardisk, uint64 memory, int swap);
 
 // Make a direct-map page table for the kernel.
 pagetable_t
@@ -69,6 +69,65 @@ void kvminithart()
 
   // flush stale entries from the TLB.
   sfence_vma();
+}
+
+int swapPages(pagetable_t pagetable, uint64 hardisk, uint64 memory, int swap)
+{
+  int i;
+  struct file_entry *file_entry;
+  // find the file entry
+  for (i = 0; i < MAX_FILE_ENTRIES; i++)
+  {
+    if (myproc()->file_entries[i].virtual_address == hardisk)
+    {
+      break;
+    }
+  }
+  if (i == MAX_FILE_ENTRIES)
+  {
+    return -1;
+  }
+  file_entry = &myproc()->file_entries[i];
+  file_entry->status = INACTIVE;
+
+  pte_t *pte_from_disk = walk(pagetable, hardisk, 0);
+  // map hardisk to memory
+  if (!swap)
+  {
+
+    void *pa = kalloc();
+    // reset pyhsical address
+    pte_t reset = (ZERO_64 | 0x3FF | (0x3FF << 53));
+    *pte_from_disk = (reset & *pte_from_disk) | PA2PTE(pa);
+    // read from the file
+    readFromSwapFile(pyproc(), (char *)pa, i * PGSIZE, PGSIZE);
+  }
+  else
+  {
+    // swap case
+    pte_t *pte_from_memory = walk(pagetable, memory, 0);
+    // swap the two pages
+    void *pa = PTE2PA(*pte_from_memory);
+    char buffer[PGSIZE];
+    memcpy(buffer, (char *)pa, PGSIZE);
+    // write the file to memory
+    readFromSwapFile(pyproc(), (char *)pa, i * PGSIZE, PGSIZE);
+    // write the memory to the file
+    writeToSwapFile(pyproc(), buffer, i * PGSIZE, PGSIZE);
+    file_entry[i].status = ACTIVE;
+    file_entry[i].virtual_address = memory;
+    // activate the PG flag
+    *pte_from_memory |= PTE_PG;
+    // reset the valid
+    *pte_from_memory &= ~PTE_V;
+    // valid
+  }
+  *pte_from_disk |= PTE_V;
+  // reset the PG flag
+  *pte_from_disk &= ~PTE_PG;
+  return 0;
+
+  // write memory to the file
 }
 
 // Return the address of the PTE in page table pagetable
