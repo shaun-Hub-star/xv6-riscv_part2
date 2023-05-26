@@ -251,10 +251,7 @@ int mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   return 0;
 }
 
-// Remove npages of mappings starting from va. va must be
-// page-aligned. The mappings must exist.
-// Optionally free the physical memory.
-void uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
+void uvmunmap_special(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
 {
   uint64 a;
   pte_t *pte;
@@ -276,6 +273,70 @@ void uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
       kfree((void *)pa);
     }
     *pte = 0;
+  }
+}
+
+// Remove npages of mappings starting from va. va must be
+// page-aligned. The mappings must exist.
+// Optionally free the physical memory.
+void uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
+{
+
+  uint64 a;
+  pte_t *pte;
+  struct proc *p = myproc(); // we added
+  if (p->special)
+  {
+    uvmunmap_special(pagetable, va, npages, do_free);
+    return;
+  }
+  int i;
+
+  if ((va % PGSIZE) != 0)
+    panic("uvmunmap: not aligned");
+
+  for (a = va; a < va + npages * PGSIZE; a += PGSIZE)
+  {
+    if ((pte = walk(pagetable, a, 0)) == 0)
+      panic("uvmunmap: walk");
+    if ((*pte & PTE_V) == 0 && (*pte & PTE_PG))
+    {
+      for (i = 0; i < MAX_FILE_ENTRIES; i++)
+      {
+        if (p->file_entries[i].status == ACTIVE && p->file_entries[i].virtual_address == a)
+        {
+          p->file_entries[i].status = INACTIVE;
+          p->counter_total_pages--;
+          break;
+        }
+      }
+      if (i == MAX_FILE_ENTRIES)
+        panic("uvmunmap - not found in file entries");
+      *pte = 0;
+      continue;
+    }
+    if ((*pte & PTE_V) == 0)
+      panic("uvmunmap: not mapped");
+    if (PTE_FLAGS(*pte) == PTE_V)
+      panic("uvmunmap: not a leaf");
+    if (do_free)
+    {
+      uint64 pa = PTE2PA(*pte);
+      kfree((void *)pa);
+    }
+    *pte = 0;
+    p->counter_total_pages--;
+    p->counter_physical_memory--;
+    for (int i = 0; i < MAX_PSYC_PAGES; i++)
+    {
+      if (p->physical_pages[i].status == ACTIVE && p->physical_pages[i].virtual_address == a)
+      {
+        p->physical_pages[i].status = INACTIVE;
+        p->physical_pages[i].virtual_address = 0;
+        p->physical_pages[i].age = 0;
+        break;
+      }
+    }
   }
 }
 
@@ -310,7 +371,7 @@ void uvmfirst(pagetable_t pagetable, uchar *src, uint sz)
 // Allocate PTEs and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
 uint64
-uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
+uvmalloc_special(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
 {
   char *mem;
   uint64 a;
@@ -335,6 +396,85 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
       return 0;
     }
   }
+  return newsz;
+}
+
+// Allocate PTEs and physical memory to grow process from oldsz to
+// newsz, which need not be page aligned.  Returns new size or 0 on error.
+uint64
+uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
+{
+  char *mem;
+  uint64 a;
+  struct proc *p = myproc();
+  if (p->special)
+  {
+    return uvmalloc_special(pagetable, oldsz, newsz, xperm);
+  }
+  int i;
+  if (newsz < oldsz)
+    return oldsz;
+
+  oldsz = PGROUNDUP(oldsz);
+  for (a = oldsz; a < newsz; a += PGSIZE)
+  {
+
+    if (p->counter_physical_memory >= MAX_PSYC_PAGES && p->counter_total_pages < MAX_TOTAL_PAGES)
+    {
+      char temp_buffer[PGSIZE];
+      memset((void *)temp_buffer, 0, PGSIZE);
+      for (i = 0; i < MAX_PSYC_PAGES; i++)
+      {
+        if (p->file_entries[i].status == INACTIVE)
+        {
+          p->file_entries[i].status = ACTIVE;
+          p->file_entries[i].virtual_address = a;
+          writeToSwapFile(p, temp_buffer, i * PGSIZE, PGSIZE);
+          pte_t *pte = walk(pagetable, a, 1);
+          if (*pte & PTE_V)
+            panic("uvmalloc");
+          *pte = (*pte ^ PTE_V) | PTE_PG | PTE_R | PTE_U | xperm; // we added permisions that mappages get
+          break;
+        }
+      }
+      p->counter_total_pages++;
+      continue;
+    }
+    else if (p->counter_total_pages >= MAX_TOTAL_PAGES)
+    {
+      uvmdealloc(pagetable, a, oldsz); // we don't perform kfree because mappages succeeded
+      return 0;
+      // maybe panic()
+    }
+
+    mem = kalloc();
+    if (mem == 0)
+    {
+      uvmdealloc(pagetable, a, oldsz);
+      return 0;
+    }
+    memset(mem, 0, PGSIZE);
+    if (mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_R | PTE_U | xperm) != 0)
+    {
+      kfree(mem);
+      uvmdealloc(pagetable, a, oldsz);
+      return 0;
+    }
+    p->counter_physical_memory++;
+    for (int i = 0; i < MAX_PSYC_PAGES; i++)
+    {
+      if (p->physical_pages[i].status == INACTIVE)
+      {
+        p->physical_pages[i].status = ACTIVE;
+        p->physical_pages[i].virtual_address = a;
+        p->physical_pages[i].age = p->global_age;
+        p->global_age++;
+        break;
+      }
+    }
+    p->counter_total_pages++;
+  }
+
   return newsz;
 }
 
@@ -395,7 +535,7 @@ void uvmfree(pagetable_t pagetable, uint64 sz)
 // physical memory.
 // returns 0 on success, -1 on failure.
 // frees any allocated pages on failure.
-int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
+int uvmcopy_special(pagetable_t old, pagetable_t new, uint64 sz)
 {
   pte_t *pte;
   uint64 pa, i;
@@ -417,6 +557,77 @@ int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     {
       kfree(mem);
       goto err;
+    }
+  }
+  return 0;
+
+err:
+  uvmunmap(new, 0, i / PGSIZE, 1);
+  return -1;
+}
+
+// Given a parent process's page table, copy
+// its memory into a child's page table.
+// Copies both the page table and the
+// physical memory.
+// returns 0 on success, -1 on failure.
+// frees any allocated pages on failure.
+int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz, struct proc *son)
+{
+  pte_t *pte;
+  pte_t *son_pte;
+  uint64 pa, i;
+  uint flags;
+  char *mem;
+  struct proc *dad = myproc();
+  if (dad->special == 1)
+  {
+    return uvmcopy_special(old, new, sz);
+  }
+  for (i = 0; i < sz; i += PGSIZE)
+  {
+    if ((pte = walk(old, i, 0)) == 0)
+      panic("uvmcopy: pte should exist");
+    if ((*pte & PTE_PG) && (*pte & PTE_V) == 0)
+    {
+      for (int j = 0; j < MAX_PSYC_PAGES; j++)
+      {
+        if (dad->file_entries[j].virtual_address == i)
+        {
+          son->file_entries[j].virtual_address = i;
+          son->file_entries[j].status = ACTIVE;
+          son_pte = walk(new, i, 1);
+          *son_pte = *son_pte | PTE_FLAGS(*pte);
+          char temp_buffer[PGSIZE];
+          memset((void *)temp_buffer, 0, PGSIZE);
+          readFromSwapFile(dad, temp_buffer, j * PGSIZE, PGSIZE);
+          writeToSwapFile(son, temp_buffer, j * PGSIZE, PGSIZE);
+          break;
+        }
+      }
+      continue;
+    }
+    if ((*pte & PTE_V) == 0)
+      panic("uvmcopy: page not present");
+    pa = PTE2PA(*pte);
+    flags = PTE_FLAGS(*pte);
+    if ((mem = kalloc()) == 0)
+      goto err;
+    memmove(mem, (char *)pa, PGSIZE);
+    if (mappages(new, i, PGSIZE, (uint64)mem, flags) != 0)
+    {
+      kfree(mem);
+      goto err;
+    }
+    for (int j = 0; j < MAX_PSYC_PAGES; j++)
+    {
+      if (dad->physical_pages[j].virtual_address == i)
+      {
+        son->physical_pages[j].virtual_address = i;
+        son->physical_pages[j].status = dad->physical_pages[j].status;
+        son->physical_pages[j].age = dad->physical_pages[j].age;
+        break;
+      }
     }
   }
   return 0;
