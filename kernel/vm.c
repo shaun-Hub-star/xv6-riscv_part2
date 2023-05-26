@@ -7,7 +7,6 @@
 #include "fs.h"
 #include "spinlock.h" //we added this
 #include "proc.h"
-#include "string.h" //we added this
 /*
  * the kernel's page table.
  */
@@ -99,7 +98,8 @@ int swapPages(pagetable_t pagetable, uint64 hardisk, uint64 memory, int swap)
 
     void *pa = kalloc();
     // reset pyhsical address
-    pte_t reset = (ZERO_64 | 0x3FF | (0x3FF << 53));
+    pte_t reserv = ((uint64)0x3FF << 53);
+    pte_t reset = (ZERO_64 | (uint64)0x3FF | reserv);
     *pte_from_disk = (reset & *pte_from_disk) | PA2PTE(pa);
     // read from the file
     readFromSwapFile(p, (char *)pa, i * PGSIZE, PGSIZE);
@@ -110,13 +110,13 @@ int swapPages(pagetable_t pagetable, uint64 hardisk, uint64 memory, int swap)
     // swap case
     pte_t *pte_from_memory = walk(pagetable, memory, 0);
     // swap the two pages
-    void *pa = PTE2PA(*pte_from_memory);
+    void *pa = (void *)PTE2PA(*pte_from_memory);
     char buffer[PGSIZE];
-    memcpy(buffer, (char *)pa, PGSIZE);
+    strncpy(buffer, (char *)pa, PGSIZE);
     // write the file to memory
-    readFromSwapFile(pyproc(), (char *)pa, i * PGSIZE, PGSIZE);
+    readFromSwapFile(p, (char *)pa, i * PGSIZE, PGSIZE);
     // write the memory to the file
-    writeToSwapFile(pyproc(), buffer, i * PGSIZE, PGSIZE);
+    writeToSwapFile(p, buffer, i * PGSIZE, PGSIZE);
     file_entry[i].status = ACTIVE;
     file_entry[i].virtual_address = memory;
     // activate the PG flag
@@ -252,14 +252,45 @@ int mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   return 0;
 }
 
+void uvmunmap_special(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
+{
+  uint64 a;
+  pte_t *pte;
+
+  if ((va % PGSIZE) != 0)
+    panic("uvmunmap: not aligned");
+
+  for (a = va; a < va + npages * PGSIZE; a += PGSIZE)
+  {
+    if ((pte = walk(pagetable, a, 0)) == 0)
+      panic("uvmunmap: walk");
+    if ((*pte & PTE_V) == 0)
+      panic("uvmunmap: not mapped");
+    if (PTE_FLAGS(*pte) == PTE_V)
+      panic("uvmunmap: not a leaf");
+    if (do_free)
+    {
+      uint64 pa = PTE2PA(*pte);
+      kfree((void *)pa);
+    }
+    *pte = 0;
+  }
+}
+
 // Remove npages of mappings starting from va. va must be
 // page-aligned. The mappings must exist.
 // Optionally free the physical memory.
 void uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
 {
+
   uint64 a;
   pte_t *pte;
   struct proc *p = myproc(); // we added
+  if (p->special)
+  {
+    uvmunmap_special(pagetable, va, npages, do_free);
+    return;
+  }
   int i;
 
   if ((va % PGSIZE) != 0)
@@ -341,12 +372,46 @@ void uvmfirst(pagetable_t pagetable, uchar *src, uint sz)
 // Allocate PTEs and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
 uint64
+uvmalloc_special(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
+{
+  char *mem;
+  uint64 a;
+
+  if (newsz < oldsz)
+    return oldsz;
+
+  oldsz = PGROUNDUP(oldsz);
+  for (a = oldsz; a < newsz; a += PGSIZE)
+  {
+    mem = kalloc();
+    if (mem == 0)
+    {
+      uvmdealloc(pagetable, a, oldsz);
+      return 0;
+    }
+    memset(mem, 0, PGSIZE);
+    if (mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_R | PTE_U | xperm) != 0)
+    {
+      kfree(mem);
+      uvmdealloc(pagetable, a, oldsz);
+      return 0;
+    }
+  }
+  return newsz;
+}
+
+// Allocate PTEs and physical memory to grow process from oldsz to
+// newsz, which need not be page aligned.  Returns new size or 0 on error.
+uint64
 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
 {
   char *mem;
   uint64 a;
   struct proc *p = myproc();
-
+  if (p->special)
+  {
+    return uvmalloc_special(pagetable, oldsz, newsz, xperm);
+  }
   int i;
   if (newsz < oldsz)
     return oldsz;
@@ -471,6 +536,43 @@ void uvmfree(pagetable_t pagetable, uint64 sz)
 // physical memory.
 // returns 0 on success, -1 on failure.
 // frees any allocated pages on failure.
+int uvmcopy_special(pagetable_t old, pagetable_t new, uint64 sz)
+{
+  pte_t *pte;
+  uint64 pa, i;
+  uint flags;
+  char *mem;
+
+  for (i = 0; i < sz; i += PGSIZE)
+  {
+    if ((pte = walk(old, i, 0)) == 0)
+      panic("uvmcopy: pte should exist");
+    if ((*pte & PTE_V) == 0)
+      panic("uvmcopy: page not present");
+    pa = PTE2PA(*pte);
+    flags = PTE_FLAGS(*pte);
+    if ((mem = kalloc()) == 0)
+      goto err;
+    memmove(mem, (char *)pa, PGSIZE);
+    if (mappages(new, i, PGSIZE, (uint64)mem, flags) != 0)
+    {
+      kfree(mem);
+      goto err;
+    }
+  }
+  return 0;
+
+err:
+  uvmunmap(new, 0, i / PGSIZE, 1);
+  return -1;
+}
+
+// Given a parent process's page table, copy
+// its memory into a child's page table.
+// Copies both the page table and the
+// physical memory.
+// returns 0 on success, -1 on failure.
+// frees any allocated pages on failure.
 int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz, struct proc *son)
 {
   pte_t *pte;
@@ -479,7 +581,10 @@ int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz, struct proc *son)
   uint flags;
   char *mem;
   struct proc *dad = myproc();
-
+  if (dad->special == 1)
+  {
+    return uvmcopy_special(old, new, sz);
+  }
   for (i = 0; i < sz; i += PGSIZE)
   {
     if ((pte = walk(old, i, 0)) == 0)

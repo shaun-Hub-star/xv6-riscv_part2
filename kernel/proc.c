@@ -134,6 +134,7 @@ found:
   }
   // release lock
   // release(&p->lock);// we added
+  
   if (createSwapFile(p) == -1)
   {
     freeproc(p);
@@ -165,7 +166,8 @@ found:
   p->counter_total_pages = 0;
   p->counter_physical_memory = 0;
   p->global_age = 0;
-  memset(p->physical_pages, 0, sizeof(p->physical_pages[0]) * MAX_PSYC_PAGES); // this is working
+  p->special = 0;
+  memset(p->physical_pages, 0, sizeof(p->physical_pages)); // this is working
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
@@ -198,6 +200,7 @@ freeproc(struct proc *p)
   p->counter_total_pages = 0;
   p->counter_physical_memory = 0;
   p->global_age = 0;
+  p->special = 0;
 
   removeSwapFile(p);
 }
@@ -266,7 +269,7 @@ void userinit(void)
 
   p = allocproc();
   initproc = p;
-
+  p->special = 1;
   // allocate one user page and copy initcode's instructions
   // and data into it.
   uvmfirst(p->pagetable, initcode, sizeof(initcode));

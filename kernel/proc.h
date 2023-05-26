@@ -113,6 +113,7 @@ struct physical_page
 };
 
 #define MAX_FILE_ENTRIES 16
+#define MAX_PHYSICAL_PAGES_ENTRIES 14
 // Per-process state
 struct proc
 {
@@ -139,9 +140,10 @@ struct proc
   char name[16];               // Process name (debugging)
 
   struct file *swapFile;
-  struct file_entry file_entries[MAX_FILE_ENTRIES];    // array of entries in swap file excluding trapframe and trampline
-  struct physical_page physical_pages[MAX_PSYC_PAGES]; // array of physical pages excluding trapframe and trampline
-  uint counter_total_pages;                            // count the number of total pages
-  uint counter_physical_memory;                        // count the number of physical pages
-  uint64 global_age;                                   // global age counter
+  struct file_entry file_entries[MAX_FILE_ENTRIES];                // array of entries in swap file excluding trapframe and trampline
+  struct physical_page physical_pages[MAX_PHYSICAL_PAGES_ENTRIES]; // array of physical pages excluding trapframe and trampline
+  uint counter_total_pages;                                        // count the number of total pages
+  uint counter_physical_memory;                                    // count the number of physical pages
+  uint64 global_age;                                               // global age counter
+  int special;                                                     // 1 if process is init/sh, 0 otherwise
 };
