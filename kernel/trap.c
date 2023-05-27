@@ -27,10 +27,10 @@ void trapinithart(void)
   w_stvec((uint64)kernelvec);
 }
 
-int get_nfua_and_lapa_index(struct proc *p)
+int get_nfua_index(struct proc *p)
 {
   int min_index = -1;
-  uint value = -1;
+  uint64 value = -1;
   for (int i = 0; i < MAX_PSYC_PAGES; i++)
   {
     if (p->physical_pages[i].counter < value)
@@ -41,10 +41,50 @@ int get_nfua_and_lapa_index(struct proc *p)
   }
   return min_index;
 }
+int num_of_ones(uint64 num)
+{
+  uint64 i = 0x8000000000000000;
+  int counter = 0;
+  while (i > 0)
+  {
+    if (i & num)
+      counter++;
+  }
+  return counter;
+}
+
+int get_lapa_index(struct proc *p)
+{
+
+  uint min_value_ones = 65;
+  int min_index = -1;
+  uint64 min_value = -1;
+  for (int i = 0; i < MAX_PSYC_PAGES; i++)
+  {
+    int counter_ones = num_of_ones(p->physical_pages[i].age);
+    if (counter_ones < min_value_ones)
+    {
+      min_value_ones = counter_ones;
+    }
+  }
+
+  for (int i = 0; i < MAX_PSYC_PAGES; i++)
+  {
+    int counter_ones = num_of_ones(p->physical_pages[i].age);
+    if (counter_ones == min_value_ones && min_value > p->physical_pages[i].age)
+    {
+      min_index = i;
+      min_value = p->physical_pages[i].age;
+    }
+  }
+
+  return min_index;
+}
+
 int get_scfifo_index(struct proc *p)
 {
   int min_index = -1;
-  uint value = -1;
+  uint64 value = -1;
   while (1)
   {
     min_index = -1;

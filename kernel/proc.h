@@ -107,9 +107,9 @@ struct file_entry
 struct physical_page
 {
   enum page_entry_status status;
-  uint virtual_address;
-  uint counter;
-  uint age;
+  uint64 virtual_address;
+  uint64 counter;
+  uint64 age;
 };
 
 #define MAX_FILE_ENTRIES 16

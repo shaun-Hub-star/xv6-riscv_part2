@@ -15,6 +15,30 @@ pagetable_t kernel_pagetable;
 extern char etext[]; // kernel.ld sets this to end of kernel code.
 
 extern char trampoline[]; // trampoline.S
+
+void update_age(struct proc *p)
+{
+  pte_t *pte;
+  for (int i = 0; i < MAX_PSYC_PAGES; i++)
+  {
+    struct physical_page *current = &p->physical_pages[i];
+    if (current->status == ACTIVE)
+    {
+      pte = walk(p->pagetable, current->virtual_address, 0);
+      if (*pte & PTE_A)
+      {
+        current->age = (current->age >> 1);
+        current->age |= 0x8000000000000000;
+      }
+      else
+      {
+        current->age = current->age >> 1;
+      }
+      *pte &= ~PTE_A;
+    }
+  }
+}
+
 int swapPages(pagetable_t pagetable, uint64 hardisk, uint64 memory, int swap);
 
 int swapPages(pagetable_t pagetable, uint64 hardisk, uint64 memory, int swap)
