@@ -49,6 +49,7 @@ void usertrap(void)
 
   if (r_scause() == 13 || r_scause() == 15)
   {
+    printf("page fault\n");
     // page fault
     uint64 va_hardisk = r_stval();
     pte_t *pte = walk(p->pagetable, va_hardisk, 0);
@@ -164,7 +165,6 @@ void kerneltrap()
   uint64 sepc = r_sepc();
   uint64 sstatus = r_sstatus();
   uint64 scause = r_scause();
-
   if ((sstatus & SSTATUS_SPP) == 0)
     panic("kerneltrap: not from supervisor mode");
   if (intr_get() != 0)

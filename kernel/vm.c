@@ -57,12 +57,14 @@ int swapPages(pagetable_t pagetable, uint64 hardisk, uint64 memory, int swap)
     pte_t *pte_from_memory = walk(pagetable, memory, 0);
     // swap the two pages
     void *pa = (void *)PTE2PA(*pte_from_memory);
-    char buffer[PGSIZE];
+    char *buffer = kalloc();
     strncpy(buffer, (char *)pa, PGSIZE);
     // write the file to memory
     readFromSwapFile(p, (char *)pa, i * PGSIZE, PGSIZE);
     // write the memory to the file
     writeToSwapFile(p, buffer, i * PGSIZE, PGSIZE);
+    kfree(buffer);
+
     file_entry[i].status = ACTIVE;
     file_entry[i].virtual_address = memory;
     // activate the PG flag
@@ -279,19 +281,20 @@ void uvmunmap_special(pagetable_t pagetable, uint64 va, uint64 npages, int do_fr
 // Remove npages of mappings starting from va. va must be
 // page-aligned. The mappings must exist.
 // Optionally free the physical memory.
-void uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
+void uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free, struct proc *p)
 {
+  printf("uvmunmap\n");
 
   uint64 a;
   pte_t *pte;
-  struct proc *p = myproc(); // we added
-  if (p->special)
+
+  if (p->pid <= 2)
   {
     uvmunmap_special(pagetable, va, npages, do_free);
     return;
   }
   int i;
-
+  // struct proc *p = myproc(); // we added
   if ((va % PGSIZE) != 0)
     panic("uvmunmap: not aligned");
 
@@ -371,7 +374,7 @@ void uvmfirst(pagetable_t pagetable, uchar *src, uint sz)
 // Allocate PTEs and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
 uint64
-uvmalloc_special(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
+uvmalloc_special(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm, struct proc *p)
 {
   char *mem;
   uint64 a;
@@ -385,14 +388,14 @@ uvmalloc_special(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
     mem = kalloc();
     if (mem == 0)
     {
-      uvmdealloc(pagetable, a, oldsz);
+      uvmdealloc(pagetable, a, oldsz, p);
       return 0;
     }
     memset(mem, 0, PGSIZE);
     if (mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_R | PTE_U | xperm) != 0)
     {
       kfree(mem);
-      uvmdealloc(pagetable, a, oldsz);
+      uvmdealloc(pagetable, a, oldsz, p);
       return 0;
     }
   }
@@ -402,18 +405,21 @@ uvmalloc_special(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
 // Allocate PTEs and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
 uint64
-uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
+uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm, struct proc *p)
 {
+  printf("uvmalloc\n");
+
   char *mem;
   uint64 a;
-  struct proc *p = myproc();
-  if (p->special)
+  if (p->pid <= 2)
   {
-    return uvmalloc_special(pagetable, oldsz, newsz, xperm);
+    return uvmalloc_special(pagetable, oldsz, newsz, xperm, p);
   }
   int i;
   if (newsz < oldsz)
     return oldsz;
+
+  // struct proc *p = myproc();
 
   oldsz = PGROUNDUP(oldsz);
   for (a = oldsz; a < newsz; a += PGSIZE)
@@ -421,7 +427,7 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
 
     if (p->counter_physical_memory >= MAX_PSYC_PAGES && p->counter_total_pages < MAX_TOTAL_PAGES)
     {
-      char temp_buffer[PGSIZE];
+      char *temp_buffer = kalloc();
       memset((void *)temp_buffer, 0, PGSIZE);
       for (i = 0; i < MAX_PSYC_PAGES; i++)
       {
@@ -437,12 +443,13 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
           break;
         }
       }
+      kfree(temp_buffer);
       p->counter_total_pages++;
       continue;
     }
     else if (p->counter_total_pages >= MAX_TOTAL_PAGES)
     {
-      uvmdealloc(pagetable, a, oldsz); // we don't perform kfree because mappages succeeded
+      uvmdealloc(pagetable, a, oldsz, p); // we don't perform kfree because mappages succeeded
       return 0;
       // maybe panic()
     }
@@ -450,14 +457,14 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
     mem = kalloc();
     if (mem == 0)
     {
-      uvmdealloc(pagetable, a, oldsz);
+      uvmdealloc(pagetable, a, oldsz, p);
       return 0;
     }
     memset(mem, 0, PGSIZE);
     if (mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_R | PTE_U | xperm) != 0)
     {
       kfree(mem);
-      uvmdealloc(pagetable, a, oldsz);
+      uvmdealloc(pagetable, a, oldsz, p);
       return 0;
     }
     p->counter_physical_memory++;
@@ -483,7 +490,7 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
 // need to be less than oldsz.  oldsz can be larger than the actual
 // process size.  Returns the new process size.
 uint64
-uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
+uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, struct proc *p)
 {
   if (newsz >= oldsz)
     return oldsz;
@@ -491,7 +498,7 @@ uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
   if (PGROUNDUP(newsz) < PGROUNDUP(oldsz))
   {
     int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
-    uvmunmap(pagetable, PGROUNDUP(newsz), npages, 1);
+    uvmunmap(pagetable, PGROUNDUP(newsz), npages, 1, p);
   }
 
   return newsz;
@@ -522,10 +529,10 @@ void freewalk(pagetable_t pagetable)
 
 // Free user memory pages,
 // then free page-table pages.
-void uvmfree(pagetable_t pagetable, uint64 sz)
+void uvmfree(pagetable_t pagetable, uint64 sz, struct proc *p)
 {
   if (sz > 0)
-    uvmunmap(pagetable, 0, PGROUNDUP(sz) / PGSIZE, 1);
+    uvmunmap(pagetable, 0, PGROUNDUP(sz) / PGSIZE, 1, p);
   freewalk(pagetable);
 }
 
@@ -535,7 +542,7 @@ void uvmfree(pagetable_t pagetable, uint64 sz)
 // physical memory.
 // returns 0 on success, -1 on failure.
 // frees any allocated pages on failure.
-int uvmcopy_special(pagetable_t old, pagetable_t new, uint64 sz)
+int uvmcopy_special(pagetable_t old, pagetable_t new, uint64 sz, struct proc *son)
 {
   pte_t *pte;
   uint64 pa, i;
@@ -562,7 +569,7 @@ int uvmcopy_special(pagetable_t old, pagetable_t new, uint64 sz)
   return 0;
 
 err:
-  uvmunmap(new, 0, i / PGSIZE, 1);
+  uvmunmap(new, 0, i / PGSIZE, 1, son);
   return -1;
 }
 
@@ -572,39 +579,28 @@ err:
 // physical memory.
 // returns 0 on success, -1 on failure.
 // frees any allocated pages on failure.
-int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz, struct proc *son)
+int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz, struct proc *son, struct proc *dad)
 {
   pte_t *pte;
   pte_t *son_pte;
   uint64 pa, i;
   uint flags;
   char *mem;
-  struct proc *dad = myproc();
-  if (dad->special == 1)
+  printf("uvmcopy\n");
+
+  if (dad->pid <= 2)
   {
-    return uvmcopy_special(old, new, sz);
+    return uvmcopy_special(old, new, sz, son);
   }
+  // struct proc *dad = myproc();
   for (i = 0; i < sz; i += PGSIZE)
   {
     if ((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
     if ((*pte & PTE_PG) && (*pte & PTE_V) == 0)
     {
-      for (int j = 0; j < MAX_PSYC_PAGES; j++)
-      {
-        if (dad->file_entries[j].virtual_address == i)
-        {
-          son->file_entries[j].virtual_address = i;
-          son->file_entries[j].status = ACTIVE;
-          son_pte = walk(new, i, 1);
-          *son_pte = *son_pte | PTE_FLAGS(*pte);
-          char temp_buffer[PGSIZE];
-          memset((void *)temp_buffer, 0, PGSIZE);
-          readFromSwapFile(dad, temp_buffer, j * PGSIZE, PGSIZE);
-          writeToSwapFile(son, temp_buffer, j * PGSIZE, PGSIZE);
-          break;
-        }
-      }
+      son_pte = walk(new, i, 1);
+      *son_pte = *son_pte | PTE_FLAGS(*pte);
       continue;
     }
     if ((*pte & PTE_V) == 0)
@@ -619,21 +615,11 @@ int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz, struct proc *son)
       kfree(mem);
       goto err;
     }
-    for (int j = 0; j < MAX_PSYC_PAGES; j++)
-    {
-      if (dad->physical_pages[j].virtual_address == i)
-      {
-        son->physical_pages[j].virtual_address = i;
-        son->physical_pages[j].status = dad->physical_pages[j].status;
-        son->physical_pages[j].age = dad->physical_pages[j].age;
-        break;
-      }
-    }
   }
   return 0;
 
 err:
-  uvmunmap(new, 0, i / PGSIZE, 1);
+  uvmunmap(new, 0, i / PGSIZE, 1, son);
   return -1;
 }
 

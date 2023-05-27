@@ -176,7 +176,7 @@ freeproc(struct proc *p)
     kfree((void *)p->trapframe);
   p->trapframe = 0;
   if (p->pagetable)
-    proc_freepagetable(p->pagetable, p->sz);
+    proc_freepagetable(p->pagetable, p->sz, p);
   p->pagetable = 0;
   p->sz = 0;
   p->pid = 0;
@@ -191,8 +191,8 @@ freeproc(struct proc *p)
   p->counter_physical_memory = 0;
   p->global_age = 0;
 
-  if (!p->special)
-    removeSwapFile(p);
+  // if (!p->special)
+  //   removeSwapFile(p);
   p->special = 0;
 }
 
@@ -215,7 +215,7 @@ proc_pagetable(struct proc *p)
   if (mappages(pagetable, TRAMPOLINE, PGSIZE,
                (uint64)trampoline, PTE_R | PTE_X) < 0)
   {
-    uvmfree(pagetable, 0);
+    uvmfree(pagetable, 0, p);
     return 0;
   }
 
@@ -224,8 +224,8 @@ proc_pagetable(struct proc *p)
   if (mappages(pagetable, TRAPFRAME, PGSIZE,
                (uint64)(p->trapframe), PTE_R | PTE_W) < 0)
   {
-    uvmunmap(pagetable, TRAMPOLINE, 1, 0);
-    uvmfree(pagetable, 0);
+    uvmunmap(pagetable, TRAMPOLINE, 1, 0, p);
+    uvmfree(pagetable, 0, p);
     return 0;
   }
 
@@ -234,11 +234,11 @@ proc_pagetable(struct proc *p)
 
 // Free a process's page table, and free the
 // physical memory it refers to.
-void proc_freepagetable(pagetable_t pagetable, uint64 sz)
+void proc_freepagetable(pagetable_t pagetable, uint64 sz, struct proc *p)
 {
-  uvmunmap(pagetable, TRAMPOLINE, 1, 0);
-  uvmunmap(pagetable, TRAPFRAME, 1, 0);
-  uvmfree(pagetable, sz);
+  uvmunmap(pagetable, TRAMPOLINE, 1, 0, p);
+  uvmunmap(pagetable, TRAPFRAME, 1, 0, p);
+  uvmfree(pagetable, sz, p);
 }
 
 // a user program that calls exec("/init")
@@ -289,14 +289,14 @@ int growproc(int n)
   sz = p->sz;
   if (n > 0)
   {
-    if ((sz = uvmalloc(p->pagetable, sz, sz + n, PTE_W)) == 0)
+    if ((sz = uvmalloc(p->pagetable, sz, sz + n, PTE_W, p)) == 0)
     {
       return -1;
     }
   }
   else if (n < 0)
   {
-    sz = uvmdealloc(p->pagetable, sz, sz + n);
+    sz = uvmdealloc(p->pagetable, sz, sz + n, p);
   }
   p->sz = sz;
   return 0;
@@ -309,7 +309,7 @@ int fork(void)
   int i, pid;
   struct proc *np;
   struct proc *p = myproc();
-
+  printf("fork\n");
   // Allocate process.
   if ((np = allocproc()) == 0)
   {
@@ -317,12 +317,13 @@ int fork(void)
   }
 
   // Copy user memory from parent to child.
-  if (uvmcopy(p->pagetable, np->pagetable, p->sz, np) < 0)
+  if (uvmcopy(p->pagetable, np->pagetable, p->sz, np, p) < 0)
   {
     freeproc(np);
     release(&np->lock);
     return -1;
   }
+  printf("fork, after uvmcopy\n");
   np->sz = p->sz;
 
   // copy saved user registers.
@@ -343,16 +344,32 @@ int fork(void)
 
   release(&np->lock);
 
-  if (!p->special)
+  if (np->pid > 2)
   {
-    if (createSwapFile(p) == -1)
+    if (createSwapFile(np) == -1)
     {
-      freeproc(p);
+      freeproc(np);
       return 0;
     }
-    char buffer[PGSIZE * MAX_FILE_ENTRIES];
-    memset(buffer, 0, sizeof(buffer));
-    writeToSwapFile(p, buffer, 0, sizeof(buffer));
+  }
+
+  if (p->pid > 2)
+  {
+    for (int j = 0; j < MAX_PSYC_PAGES; j++)
+    {
+      np->physical_pages[j].virtual_address = np->physical_pages[j].virtual_address;
+      p->physical_pages[j].status = np->physical_pages[j].status;
+      p->physical_pages[j].age = np->physical_pages[j].age;
+      // missing counter
+    }
+
+    char *buffer = kalloc();
+    for (int i = 0; i < MAX_FILE_ENTRIES; i++)
+    {
+      readFromSwapFile(p, buffer, i * PGSIZE, PGSIZE);
+      writeToSwapFile(np, buffer, i * PGSIZE, PGSIZE);
+    }
+    kfree(buffer);
   }
 
   acquire(&wait_lock);
