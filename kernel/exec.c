@@ -76,7 +76,6 @@ int exec(char *path, char **argv)
       goto bad;
     uint64 sz1;
     int perm = flags2perm(ph.flags);
-    printf("before uvmalloc\n");
     if ((sz1 = uvmalloc(pagetable, sz, ph.vaddr + ph.memsz, perm, p)) == 0)
       goto bad;
     sz = sz1;

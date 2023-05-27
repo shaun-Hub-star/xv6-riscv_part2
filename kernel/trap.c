@@ -49,19 +49,21 @@ void usertrap(void)
 
   if (r_scause() == 13 || r_scause() == 15)
   {
-    printf("page fault\n");
-    // page fault
+
+    //  page fault
     uint64 va_hardisk = r_stval();
     pte_t *pte = walk(p->pagetable, va_hardisk, 0);
-    if (*pte & PTE_PG && (*pte & PTE_V) == 0)
+    if (*pte & PTE_PG)
     {
+      printf("page fault\n");
       // access the va address of
       if (p->counter_physical_memory >= MAX_PSYC_PAGES)
       {
         for (int i = 0; i < MAX_PSYC_PAGES; i++)
         {
-          if (p->physical_pages[i].status == INACTIVE) // put here the algorithm for page swaping in the future
+          if (p->physical_pages[i].status == ACTIVE) // put here the algorithm for page swaping in the future
           {
+            printf("swap page1\n");
             swapPages(p->pagetable, va_hardisk, p->physical_pages[i].virtual_address, 1);
             break;
           }
@@ -69,9 +71,20 @@ void usertrap(void)
       }
       else
       {
+        printf("swap page2\n");
+
         swapPages(p->pagetable, va_hardisk, 0, 0);
       }
     }
+    else
+    {
+      panic("usertrap: page fault");
+    }
+    sfence_vma();
+    if (killed(p))
+      exit(-1);
+    usertrapret();
+    return;
   }
 
   if (r_scause() == 8)

@@ -23,6 +23,7 @@ int swapPages(pagetable_t pagetable, uint64 hardisk, uint64 memory, int swap)
   struct file_entry *file_entry;
   struct proc *p = myproc();
   // find the file entry
+  hardisk = PGROUNDDOWN(hardisk);
   for (i = 0; i < MAX_FILE_ENTRIES; i++)
   {
     if (p->file_entries[i].virtual_address == hardisk)
@@ -57,6 +58,11 @@ int swapPages(pagetable_t pagetable, uint64 hardisk, uint64 memory, int swap)
     pte_t *pte_from_memory = walk(pagetable, memory, 0);
     // swap the two pages
     void *pa = (void *)PTE2PA(*pte_from_memory);
+
+    pte_t reserv = ((uint64)0x3FF << 53);
+    pte_t reset = (ZERO_64 | (uint64)0x3FF | reserv);
+    *pte_from_disk = (reset & *pte_from_disk) | PA2PTE(pa);
+
     char *buffer = kalloc();
     strncpy(buffer, (char *)pa, PGSIZE);
     // write the file to memory
@@ -66,7 +72,7 @@ int swapPages(pagetable_t pagetable, uint64 hardisk, uint64 memory, int swap)
     kfree(buffer);
 
     file_entry[i].status = ACTIVE;
-    file_entry[i].virtual_address = memory;
+    file_entry[i].virtual_address = memory; // maybe we need pagedown
     // activate the PG flag
     *pte_from_memory |= PTE_PG;
     // reset the valid
@@ -283,7 +289,6 @@ void uvmunmap_special(pagetable_t pagetable, uint64 va, uint64 npages, int do_fr
 // Optionally free the physical memory.
 void uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free, struct proc *p)
 {
-  printf("uvmunmap\n");
 
   uint64 a;
   pte_t *pte;
@@ -293,7 +298,7 @@ void uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free, stru
     uvmunmap_special(pagetable, va, npages, do_free);
     return;
   }
-  int i;
+  int i = 0;
   // struct proc *p = myproc(); // we added
   if ((va % PGSIZE) != 0)
     panic("uvmunmap: not aligned");
@@ -302,7 +307,7 @@ void uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free, stru
   {
     if ((pte = walk(pagetable, a, 0)) == 0)
       panic("uvmunmap: walk");
-    if ((*pte & PTE_V) == 0 && (*pte & PTE_PG))
+    if (pagetable == p->pagetable && (*pte & PTE_V) == 0 && (*pte & PTE_PG))
     {
       for (i = 0; i < MAX_FILE_ENTRIES; i++) // algorithm for swiping out required
       {
@@ -318,8 +323,12 @@ void uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free, stru
       *pte = 0;
       continue;
     }
-    if ((*pte & PTE_V) == 0)
-      panic("uvmunmap: not mapped");
+    if (pagetable != p->pagetable && (*pte & PTE_PG))
+    {
+      continue;
+    }
+    if ((*pte & PTE_V) == 0 && (*pte & PTE_PG) == 0)
+      panic("uvmunmap: not mapped and not in disk");
     if (PTE_FLAGS(*pte) == PTE_V)
       panic("uvmunmap: not a leaf");
     if (do_free)
@@ -330,9 +339,9 @@ void uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free, stru
     *pte = 0;
     p->counter_total_pages--;
     p->counter_physical_memory--;
-    for (int i = 0; i < MAX_PSYC_PAGES; i++)
+    for (int i = 0; p->pagetable == pagetable && i < MAX_PSYC_PAGES; i++)
     {
-      if (p->physical_pages[i].status == ACTIVE && p->physical_pages[i].virtual_address == a)
+      if (p->pagetable == pagetable && p->physical_pages[i].status == ACTIVE && p->physical_pages[i].virtual_address == a)
       {
         p->physical_pages[i].status = INACTIVE;
         p->physical_pages[i].virtual_address = 0;
@@ -439,7 +448,7 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm, struct pr
           pte_t *pte = walk(pagetable, a, 1);
           if (*pte & PTE_V)
             panic("uvmalloc");
-          *pte = (*pte & ~PTE_V) | PTE_PG | PTE_R | PTE_U | xperm; // we added permisions that mappages get
+          *pte = (*pte & ~PTE_V) | PTE_PG | PTE_R | PTE_U | PTE_X | xperm; // we added permisions that mappages get
           break;
         }
       }
