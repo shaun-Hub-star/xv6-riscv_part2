@@ -304,7 +304,7 @@ void uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free, stru
       panic("uvmunmap: walk");
     if ((*pte & PTE_V) == 0 && (*pte & PTE_PG))
     {
-      for (i = 0; i < MAX_FILE_ENTRIES; i++)
+      for (i = 0; i < MAX_FILE_ENTRIES; i++) // algorithm for swiping out required
       {
         if (p->file_entries[i].status == ACTIVE && p->file_entries[i].virtual_address == a)
         {
@@ -439,7 +439,7 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm, struct pr
           pte_t *pte = walk(pagetable, a, 1);
           if (*pte & PTE_V)
             panic("uvmalloc");
-          *pte = (*pte ^ PTE_V) | PTE_PG | PTE_R | PTE_U | xperm; // we added permisions that mappages get
+          *pte = (*pte & ~PTE_V) | PTE_PG | PTE_R | PTE_U | xperm; // we added permisions that mappages get
           break;
         }
       }
