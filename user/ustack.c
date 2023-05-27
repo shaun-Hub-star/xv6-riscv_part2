@@ -2,66 +2,10 @@
 
 static struct Header *base_stack = 0;
 static struct Header *last_occupied = 0;
-// static unsigned long allocted_size = 0;
-
-// void *ustack_malloc(uint len)
-// {
-//     if (base_stack == 0)
-//     {
-//         char *address = sbrk(CALC_PAGE);
-//         if ((int)address == -1)
-//             return -1;
-
-//         base_stack = (struct Header *)address;
-//         last_occupied = base_stack;
-//         last_occupied->len = len;
-//         last_occupied->prev = base_stack;
-//         last_occupied->dealloc_page = 1;
-//         allocted_size += len;
-//         return (void *)(last_occupied + 1);
-//     }
-
-//     uint old_size_mod = allocted_size % PAGE_SIZE;
-
-//     if (old_size_mod == 0)
-//     {
-//         struct Header *new_page = (struct Header *)sbrk(CALC_PAGE);
-//         if ((int)new_page == -1)
-//             return -1;
-//         new_page->prev = last_occupied;
-//         new_page->len = len;
-//         last_occupied = new_page;
-//         allocted_size += len;
-//         return (void *)(last_occupied + 1);
-//     }
-
-//     if (old_size_mod + len <= PAGE_SIZE)
-//     {
-//         // not allocate
-//         struct Header *new_page = (struct Header *)(((void *)(last_occupied + 1)) + last_occupied->len);
-//         new_page->len = len;
-//         new_page->prev = last_occupied;
-//         allocted_size += len;
-//         last_occupied = new_page;
-//         return (void *)(last_occupied + 1);
-//     }
-//     else
-//     {
-//         // allocate
-//         struct Header *new_page = (struct Header *)(((void *)(last_occupied + 1)) + last_occupied->len);
-//         new_page->len = len;
-//         new_page->prev = last_occupied;
-//         if ((int)sbrk(CALC_PAGE) == -1)
-//             return -1;
-//         last_occupied = new_page;
-//         allocted_size += len;
-//         return (void *)(last_occupied + 1);
-//     }
-// }
 
 void *ustack_malloc(uint len)
 {
-
+    // struct Header *new_block = (struct Header *)sbrk((int)((len + sizeof(struct Header) - 1) / sizeof(struct Header) + 1));
     struct Header *new_block = (struct Header *)sbrk(sizeof(struct Header) + len);
     if (new_block == (struct Header *)-1)
         return (void *)-1;

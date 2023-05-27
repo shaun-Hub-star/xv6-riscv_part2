@@ -337,8 +337,12 @@ void uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free, stru
       kfree((void *)pa);
     }
     *pte = 0;
-    p->counter_total_pages--;
-    p->counter_physical_memory--;
+    if (va != TRAMPOLINE && va != TRAPFRAME && p->pagetable == pagetable)
+    {
+      p->counter_total_pages--;
+      p->counter_physical_memory--;
+    }
+
     for (int i = 0; p->pagetable == pagetable && i < MAX_PSYC_PAGES; i++)
     {
       if (p->pagetable == pagetable && p->physical_pages[i].status == ACTIVE && p->physical_pages[i].virtual_address == a)
