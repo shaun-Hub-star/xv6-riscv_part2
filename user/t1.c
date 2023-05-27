@@ -4,18 +4,18 @@
 
 int main(int argc, char *argv[])
 {
-    char *hello0 = (char *)ustack_malloc(2000);
+    char *hello0 = (char *)ustack_malloc(100);
 
     strcpy(hello0, "hello0\n");
 
-    char *hello1 = (char *)ustack_malloc(3300);
+    char *hello1 = (char *)ustack_malloc(200);
 
-    for (int i = 0; i < 3300; i++)
+    for (int i = 0; i < 200; i++)
     {
         hello1[i] = 'a';
     }
 
-    char *hello2 = (char *)ustack_malloc(2000);
+    char *hello2 = (char *)ustack_malloc(100);
 
     strcpy(hello2, "hello2\n");
 

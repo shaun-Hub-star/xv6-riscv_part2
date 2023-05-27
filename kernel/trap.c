@@ -63,7 +63,6 @@ void usertrap(void)
         {
           if (p->physical_pages[i].status == ACTIVE) // put here the algorithm for page swaping in the future
           {
-            printf("swap page1\n");
             swapPages(p->pagetable, va_hardisk, p->physical_pages[i].virtual_address, 1);
             break;
           }
@@ -71,7 +70,6 @@ void usertrap(void)
       }
       else
       {
-        printf("swap page2\n");
 
         swapPages(p->pagetable, va_hardisk, 0, 0);
       }

@@ -309,7 +309,6 @@ int fork(void)
   int i, pid;
   struct proc *np;
   struct proc *p = myproc();
-  printf("fork\n");
   // Allocate process.
   if ((np = allocproc()) == 0)
   {
@@ -323,7 +322,6 @@ int fork(void)
     release(&np->lock);
     return -1;
   }
-  printf("fork, after uvmcopy\n");
   np->sz = p->sz;
 
   // copy saved user registers.

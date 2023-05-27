@@ -416,7 +416,6 @@ uvmalloc_special(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm, s
 uint64
 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm, struct proc *p)
 {
-  printf("uvmalloc\n");
 
   char *mem;
   uint64 a;
@@ -595,7 +594,6 @@ int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz, struct proc *son, struc
   uint64 pa, i;
   uint flags;
   char *mem;
-  printf("uvmcopy\n");
 
   if (dad->pid <= 2)
   {
