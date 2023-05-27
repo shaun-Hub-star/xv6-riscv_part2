@@ -344,6 +344,9 @@ int fork(void)
 
   release(&np->lock);
 
+  np->counter_physical_memory = p->counter_physical_memory;
+  np->counter_total_pages = p->counter_total_pages;
+  np->global_age = p->global_age;
   if (np->pid > 2)
   {
     if (createSwapFile(np) == -1)
@@ -351,6 +354,13 @@ int fork(void)
       freeproc(np);
       return 0;
     }
+    char *buffer = kalloc();
+    memset(buffer, 0, PGSIZE);
+    for (int i = 0; i < MAX_FILE_ENTRIES; i++)
+    {
+      writeToSwapFile(np, buffer, i * PGSIZE, PGSIZE);
+    }
+    kfree(buffer);
   }
 
   if (p->pid > 2)
@@ -418,6 +428,10 @@ void exit(int status)
       fileclose(f);
       p->ofile[fd] = 0;
     }
+  }
+  if (p->pid > 2)
+  {
+    removeSwapFile(p);
   }
 
   begin_op();

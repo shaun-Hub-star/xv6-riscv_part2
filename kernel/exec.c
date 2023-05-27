@@ -34,6 +34,7 @@ int exec(char *path, char **argv)
 
   p->counter_physical_memory = 0;
   p->counter_total_pages = 0;
+  p->global_age = 0;
   if (strncmp(path, "sh", 2) == 0)
     p->special = 1;
   if (!p->special)
