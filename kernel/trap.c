@@ -27,6 +27,56 @@ void trapinithart(void)
   w_stvec((uint64)kernelvec);
 }
 
+int get_nfua_and_lapa_index(struct proc *p)
+{
+  int min_index = -1;
+  uint value = -1;
+  for (int i = 0; i < MAX_PSYC_PAGES; i++)
+  {
+    if (p->physical_pages[i].counter < value)
+    {
+      min_index = i;
+      value = p->physical_pages[i].counter;
+    }
+  }
+  return min_index;
+}
+int get_scfifo_index(struct proc *p)
+{
+  int min_index = -1;
+  uint value = -1;
+  while (1)
+  {
+    min_index = -1;
+    value = -1;
+    for (int i = 0; i < MAX_PSYC_PAGES; i++)
+    {
+      if (p->physical_pages[i].age < value)
+      {
+        min_index = i;
+        value = p->physical_pages[i].age;
+      }
+    }
+    pte_t *pte_min = walk(p->pagetable, p->physical_pages[min_index].virtual_address, 0);
+    if (pte_min == 0)
+      panic("get_scfifo_index");
+    if (*pte_min & PTE_A)
+    {
+      *pte_min &= ~PTE_A;
+      p->physical_pages[min_index].age = p->global_age;
+      p->global_age++;
+    }
+    else
+      break;
+  }
+  return min_index;
+}
+
+int get_physical_page_index(struct proc *p)
+{
+  return 1;
+}
+
 //
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
