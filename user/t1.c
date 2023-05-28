@@ -4,30 +4,40 @@
 
 int main(int argc, char *argv[])
 {
-    char *hello0 = (char *)ustack_malloc(16000);
-
-    strcpy(hello0, "hello0\n");
-
-    char *hello1 = (char *)ustack_malloc(16000);
-
-    for (int i = 0; i < 10000; i++)
+    int PGSIZE = 4096;
+    int numberOfPages = 18;
+    int allocSize = 512;
+    
+    int numberOfRequiredMallocs = (numberOfPages * PGSIZE) / allocSize + 1;
+    for (int i = 0; i < numberOfRequiredMallocs; i++)
     {
-        hello1[i] = 'a';
+        char *ptr = (char *)ustack_malloc(allocSize);
+        if (ptr == (char *)-1)
+        {
+            printf("Error: ustack_malloc failed\n");
+            exit(1);
+        }
+        for (int j = 0; j < allocSize; j++)
+        {
+            ptr[j] = 'a';
+        }
     }
-
-    char *hello2 = (char *)ustack_malloc(16000);
-
-    strcpy(hello2, "hello2\n");
-    for (int i = 0; i < 10000; i++)
+    // free all the allocated memory using for loop
+    int numberOfBytesFree = 0;
+    for (int i = 0; i < numberOfRequiredMallocs; i++)
     {
-        hello2[i] = 'a';
+        if ((numberOfBytesFree = ustack_free()) == -1)
+        {
+            printf("Error: ustack_free failed\n");
+            exit(1);
+        }
+        if (numberOfBytesFree != allocSize)
+        {
+            printf("Error: ustack_free failed should have returned %d but was, %d\n", allocSize, numberOfBytesFree);
+            // exit(1);
+        }
     }
-
-    printf(hello2);
-
-    printf("Hello2 len:%d\n", ustack_free());
-    printf("Hello len:%d\n", ustack_free());
-    printf(hello0);
+    printf("ustack_test succeeded\n");
 
     exit(0);
 }
