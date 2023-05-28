@@ -85,6 +85,7 @@ int get_lapa_index(struct proc *p)
 
 int get_scfifo_index(struct proc *p)
 {
+  printf("get_scfifo_index\n");
   int min_index = -1;
   uint64 value = -1;
   while (1)
@@ -117,17 +118,18 @@ int get_scfifo_index(struct proc *p)
 int get_physical_page_index(struct proc *p)
 {
 
-#if SWAP_ALGO == NFUA
+#ifdef NFUA
   return get_nfua_index(p);
 #endif
 
-#if SWAP_ALGO == LAPA
+#ifdef LAPA
   return get_lapa_index(p);
 #endif
 
-#if SWAP_ALGO == SCFIFO
+#ifdef SCFIFO
   return get_scfifo_index(p);
 #endif
+  return 0;
 }
 
 //
@@ -149,6 +151,8 @@ void usertrap(void)
 
   // save user program counter.
   p->trapframe->epc = r_sepc();
+
+#ifndef NONE
 
   if (r_scause() == 13 || r_scause() == 15)
   {
@@ -181,6 +185,7 @@ void usertrap(void)
     usertrapret();
     return;
   }
+#endif
 
   if (r_scause() == 8)
   {

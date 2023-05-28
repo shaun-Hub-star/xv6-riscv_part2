@@ -121,11 +121,11 @@ int swapPages(pagetable_t pagetable, uint64 hardisk, uint64 memory, int swap)
     {
       p->physical_pages[i].status = ACTIVE;
       p->physical_pages[i].virtual_address = hardisk;
-#if SWAP_ALGO == NFUA
+#ifdef NFUA
       p->physical_pages[i].counter = 0;
 #endif
 
-#if SWAP_ALGO == LAPA
+#ifdef LAPA
       p->physical_pages[i].counter = 0xFFFFFFFF;
 #endif
 
@@ -326,7 +326,7 @@ void uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free, stru
   uint64 a;
   pte_t *pte;
 
-#if SWAP_ALGO == NONE
+#ifdef NONE
   uvmunmap_special(pagetable, va, npages, do_free);
   return;
 #else
@@ -463,7 +463,7 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm, struct pr
   char *mem;
   uint64 a;
 
-#if SWAP_ALGO == NONE
+#ifdef NONE
   return uvmalloc_special(pagetable, oldsz, newsz, xperm, p);
 #else
   if (p->pid <= 2)
@@ -533,11 +533,11 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm, struct pr
         p->physical_pages[i].virtual_address = a;
         p->physical_pages[i].age = p->global_age;
 
-#if SWAP_ALGO == NFUA
+#ifdef NFUA
         p->physical_pages[i].counter = 0;
 #endif
 
-#if SWAP_ALGO == LAPA
+#ifdef LAPA
         p->physical_pages[i].counter = 0xFFFFFFFF;
 #endif
         p->global_age++;
@@ -652,7 +652,7 @@ int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz, struct proc *son, struc
   uint flags;
   char *mem;
 
-#if SWAP_ALGO == NONE
+#ifdef NONE
   return uvmcopy_special(old, new, sz, son);
 #else
   if (dad->pid <= 2)
