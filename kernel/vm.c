@@ -16,7 +16,7 @@ extern char etext[]; // kernel.ld sets this to end of kernel code.
 
 extern char trampoline[]; // trampoline.S
 
-void update_age(struct proc *p)
+void update_counter(struct proc *p)
 {
   pte_t *pte;
   for (int i = 0; i < MAX_PSYC_PAGES; i++)
@@ -27,12 +27,12 @@ void update_age(struct proc *p)
       pte = walk(p->pagetable, current->virtual_address, 0);
       if (*pte & PTE_A)
       {
-        current->age = (current->age >> 1);
-        current->age |= 0x8000000000000000;
+        current->counter = (current->counter >> 1);
+        current->counter |= 0x8000000000000000;
       }
       else
       {
-        current->age = current->age >> 1;
+        current->counter = current->counter >> 1;
       }
       *pte &= ~PTE_A;
     }
@@ -96,6 +96,7 @@ int swapPages(pagetable_t pagetable, uint64 hardisk, uint64 memory, int swap)
     kfree(buffer);
 
     file_entry[i].status = ACTIVE;
+
     file_entry[i].virtual_address = memory; // maybe we need pagedown
     // activate the PG flag
     *pte_from_memory |= PTE_PG;
@@ -120,6 +121,14 @@ int swapPages(pagetable_t pagetable, uint64 hardisk, uint64 memory, int swap)
     {
       p->physical_pages[i].status = ACTIVE;
       p->physical_pages[i].virtual_address = hardisk;
+#if SWAP_ALGO == NFUA
+      p->physical_pages[i].counter = 0;
+#endif
+
+#if SWAP_ALGO == LAPA
+      p->physical_pages[i].counter = 0xFFFFFFFF;
+#endif
+
       p->physical_pages[i].age = p->global_age;
       p->global_age++;
       break;
@@ -317,11 +326,17 @@ void uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free, stru
   uint64 a;
   pte_t *pte;
 
+#if SWAP_ALGO == NONE
+  uvmunmap_special(pagetable, va, npages, do_free);
+  return;
+#else
   if (p->pid <= 2)
   {
     uvmunmap_special(pagetable, va, npages, do_free);
     return;
   }
+#endif
+
   int i = 0;
   // struct proc *p = myproc(); // we added
   if ((va % PGSIZE) != 0)
@@ -447,10 +462,16 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm, struct pr
 
   char *mem;
   uint64 a;
+
+#if SWAP_ALGO == NONE
+  return uvmalloc_special(pagetable, oldsz, newsz, xperm, p);
+#else
   if (p->pid <= 2)
   {
     return uvmalloc_special(pagetable, oldsz, newsz, xperm, p);
   }
+#endif
+
   int i;
   if (newsz < oldsz)
     return oldsz;
@@ -511,6 +532,14 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm, struct pr
         p->physical_pages[i].status = ACTIVE;
         p->physical_pages[i].virtual_address = a;
         p->physical_pages[i].age = p->global_age;
+
+#if SWAP_ALGO == NFUA
+        p->physical_pages[i].counter = 0;
+#endif
+
+#if SWAP_ALGO == LAPA
+        p->physical_pages[i].counter = 0xFFFFFFFF;
+#endif
         p->global_age++;
         break;
       }
@@ -623,10 +652,15 @@ int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz, struct proc *son, struc
   uint flags;
   char *mem;
 
+#if SWAP_ALGO == NONE
+  return uvmcopy_special(old, new, sz, son);
+#else
   if (dad->pid <= 2)
   {
     return uvmcopy_special(old, new, sz, son);
   }
+#endif
+
   // struct proc *dad = myproc();
   for (i = 0; i < sz; i += PGSIZE)
   {

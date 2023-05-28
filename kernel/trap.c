@@ -29,6 +29,7 @@ void trapinithart(void)
 
 int get_nfua_index(struct proc *p)
 {
+  printf("get_nfua_index\n");
   int min_index = -1;
   uint64 value = -1;
   for (int i = 0; i < MAX_PSYC_PAGES; i++)
@@ -49,19 +50,20 @@ int num_of_ones(uint64 num)
   {
     if (i & num)
       counter++;
+    i /= 2;
   }
   return counter;
 }
 
 int get_lapa_index(struct proc *p)
 {
-
+  printf("get_lapa_index\n");
   uint min_value_ones = 65;
   int min_index = -1;
   uint64 min_value = -1;
   for (int i = 0; i < MAX_PSYC_PAGES; i++)
   {
-    int counter_ones = num_of_ones(p->physical_pages[i].age);
+    int counter_ones = num_of_ones(p->physical_pages[i].counter);
     if (counter_ones < min_value_ones)
     {
       min_value_ones = counter_ones;
@@ -70,11 +72,11 @@ int get_lapa_index(struct proc *p)
 
   for (int i = 0; i < MAX_PSYC_PAGES; i++)
   {
-    int counter_ones = num_of_ones(p->physical_pages[i].age);
-    if (counter_ones == min_value_ones && min_value > p->physical_pages[i].age)
+    int counter_ones = num_of_ones(p->physical_pages[i].counter);
+    if (counter_ones == min_value_ones && min_value > p->physical_pages[i].counter)
     {
       min_index = i;
-      min_value = p->physical_pages[i].age;
+      min_value = p->physical_pages[i].counter;
     }
   }
 
@@ -114,7 +116,18 @@ int get_scfifo_index(struct proc *p)
 
 int get_physical_page_index(struct proc *p)
 {
-  return 1;
+
+#if SWAP_ALGO == NFUA
+  return get_nfua_index(p);
+#endif
+
+#if SWAP_ALGO == LAPA
+  return get_lapa_index(p);
+#endif
+
+#if SWAP_ALGO == SCFIFO
+  return get_scfifo_index(p);
+#endif
 }
 
 //
@@ -149,14 +162,8 @@ void usertrap(void)
       // access the va address of
       if (p->counter_physical_memory >= MAX_PSYC_PAGES)
       {
-        for (int i = 0; i < MAX_PSYC_PAGES; i++)
-        {
-          if (p->physical_pages[i].status == ACTIVE) // put here the algorithm for page swaping in the future
-          {
-            swapPages(p->pagetable, va_hardisk, p->physical_pages[i].virtual_address, 1);
-            break;
-          }
-        }
+        int index = get_physical_page_index(p);
+        swapPages(p->pagetable, va_hardisk, p->physical_pages[index].virtual_address, 1);
       }
       else
       {

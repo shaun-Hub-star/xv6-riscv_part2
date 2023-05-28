@@ -31,9 +31,7 @@ OBJS = \
   $K/virtio_disk.o
 
 
-ifndef SWAP_ALGO
-	SWAP_ALGO:=SCFIFO
-endif
+
 
 # riscv64-unknown-elf- or riscv64-linux-gnu-
 # perhaps in /opt/riscv/bin
@@ -51,6 +49,10 @@ TOOLPREFIX := $(shell if riscv64-unknown-elf-objdump -i 2>&1 | grep 'elf64-big' 
 	echo "*** Error: Couldn't find a riscv64 version of GCC/binutils." 1>&2; \
 	echo "*** To turn off this error, run 'gmake TOOLPREFIX= ...'." 1>&2; \
 	echo "***" 1>&2; exit 1; fi)
+endif
+
+ifndef SWAP_ALGO
+	SWAP_ALGO:=SCFIFO
 endif
 
 QEMU = qemu-system-riscv64

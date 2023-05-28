@@ -18,6 +18,8 @@ struct spinlock pid_lock;
 extern void forkret(void);
 static void freeproc(struct proc *p);
 
+extern void update_counter(struct proc *p); // tomer added
+
 extern char trampoline[]; // trampoline.S
 
 // helps ensure that wakeups of wait()ing
@@ -306,6 +308,7 @@ int growproc(int n)
 // Sets up child kernel stack to return as if from fork() system call.
 int fork(void)
 {
+
   int i, pid;
   struct proc *np;
   struct proc *p = myproc();
@@ -540,6 +543,10 @@ void scheduler(void)
         p->state = RUNNING;
         c->proc = p;
         swtch(&c->context, &p->context);
+
+#if SWAP_ALGO == NFUA || SWAP_ALGO == LAPA
+        update_counter(p);
+#endif
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.
