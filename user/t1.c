@@ -5,9 +5,8 @@
 int main(int argc, char *argv[])
 {
     int PGSIZE = 4096;
-    int numberOfPages = 18;
+    int numberOfPages = 10;
     int allocSize = 512;
-    
     int numberOfRequiredMallocs = (numberOfPages * PGSIZE) / allocSize + 1;
     for (int i = 0; i < numberOfRequiredMallocs; i++)
     {

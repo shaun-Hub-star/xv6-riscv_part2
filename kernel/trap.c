@@ -67,16 +67,12 @@ int get_lapa_index(struct proc *p)
     if (counter_ones < min_value_ones)
     {
       min_value_ones = counter_ones;
-    }
-  }
-
-  for (int i = 0; i < MAX_PSYC_PAGES; i++)
-  {
-    int counter_ones = num_of_ones(p->physical_pages[i].counter);
-    if (counter_ones == min_value_ones && min_value > p->physical_pages[i].counter)
-    {
       min_index = i;
+    }
+    else if (counter_ones == min_value_ones && min_value >= p->physical_pages[i].counter)
+    {
       min_value = p->physical_pages[i].counter;
+      min_index = i;
     }
   }
 
