@@ -344,7 +344,9 @@ int fork(void)
   pid = np->pid;
 
   release(&np->lock);
-#ifndef NONE
+
+#ifdef SWAP_ALGO
+#if SWAP_ALGO != NONE
   np->counter_physical_memory = p->counter_physical_memory;
   np->counter_total_pages = p->counter_total_pages;
   np->global_age = p->global_age;
@@ -383,6 +385,8 @@ int fork(void)
     kfree(buffer);
   }
 #endif
+#endif
+
   acquire(&wait_lock);
   np->parent = p;
   release(&wait_lock);
@@ -430,12 +434,15 @@ void exit(int status)
       p->ofile[fd] = 0;
     }
   }
-#ifndef NONE
+#ifdef SWAP_ALGO
+#if SWAP_ALGO == NONE
   if (p->pid > 2)
   {
     removeSwapFile(p);
   }
 #endif
+#endif
+
   begin_op();
   iput(p->cwd);
   end_op();
@@ -545,12 +552,15 @@ void scheduler(void)
         c->proc = p;
         swtch(&c->context, &p->context);
 
-#ifdef NFUA
+#ifdef SWAP_ALGO
+
+#if SWAP_ALGO == NFUA
+        update_counter(p);
+
+#elif SWAP_ALGO == LAPA
         update_counter(p);
 #endif
 
-#ifdef LAPA
-        update_counter(p);
 #endif
 
         // Process is done running for now.

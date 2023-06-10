@@ -114,16 +114,19 @@ int get_scfifo_index(struct proc *p)
 int get_physical_page_index(struct proc *p)
 {
 
-#ifdef NFUA
+#ifdef SWAP_ALGO
+
+#if SWAP_ALGO == NFUA
   return get_nfua_index(p);
-#endif
 
-#ifdef LAPA
+#elif SWAP_ALGO == LAPA
   return get_lapa_index(p);
+
+#elif SWAP_ALGO == SCFIFO
+  return get_scfifo_index(p);
+
 #endif
 
-#ifdef SCFIFO
-  return get_scfifo_index(p);
 #endif
   return 0;
 }
@@ -148,7 +151,8 @@ void usertrap(void)
   // save user program counter.
   p->trapframe->epc = r_sepc();
 
-#ifndef NONE
+#ifdef SWAP_ALGO
+#if SWAP_ALGO != NONE
 
   if (r_scause() == 13 || r_scause() == 15)
   {
@@ -181,6 +185,7 @@ void usertrap(void)
     usertrapret();
     return;
   }
+#endif
 #endif
 
   if (r_scause() == 8)

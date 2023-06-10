@@ -121,12 +121,14 @@ int swapPages(pagetable_t pagetable, uint64 hardisk, uint64 memory, int swap)
     {
       p->physical_pages[i].status = ACTIVE;
       p->physical_pages[i].virtual_address = hardisk;
-#ifdef NFUA
-      p->physical_pages[i].counter = 0;
-#endif
+#ifdef SWAP_ALGO
 
-#ifdef LAPA
+#if SWAP_ALGO == NFUA
+      p->physical_pages[i].counter = 0;
+
+#elif SWAP_ALGO == LAPA
       p->physical_pages[i].counter = 0xFFFFFFFF;
+#endif
 #endif
 
       p->physical_pages[i].age = p->global_age;
@@ -325,8 +327,8 @@ void uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free, stru
 
   uint64 a;
   pte_t *pte;
-
-#ifdef NONE
+#ifdef SWAP_ALGO
+#if SWAP_ALGO == NONE
   uvmunmap_special(pagetable, va, npages, do_free);
   return;
 #else
@@ -335,6 +337,7 @@ void uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free, stru
     uvmunmap_special(pagetable, va, npages, do_free);
     return;
   }
+#endif
 #endif
 
   int i = 0;
@@ -462,14 +465,17 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm, struct pr
 
   char *mem;
   uint64 a;
+#ifdef SWAP_ALGO
 
-#ifdef NONE
+#if SWAP_ALGO == NONE
   return uvmalloc_special(pagetable, oldsz, newsz, xperm, p);
 #else
   if (p->pid <= 2)
   {
     return uvmalloc_special(pagetable, oldsz, newsz, xperm, p);
   }
+#endif
+
 #endif
 
   int i;
@@ -533,13 +539,16 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm, struct pr
         p->physical_pages[i].virtual_address = a;
         p->physical_pages[i].age = p->global_age;
 
-#ifdef NFUA
-        p->physical_pages[i].counter = 0;
-#endif
+#ifdef SWAP_ALGO
 
-#ifdef LAPA
+#if SWAP_ALGO == NFUA
+        p->physical_pages[i].counter = 0;
+
+#elif SWAP_ALGO == LAPA
         p->physical_pages[i].counter = 0xFFFFFFFF;
 #endif
+#endif
+
         p->global_age++;
         break;
       }
@@ -651,14 +660,16 @@ int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz, struct proc *son, struc
   uint64 pa, i;
   uint flags;
   char *mem;
+#ifdef SWAP_ALGO
 
-#ifdef NONE
+#if SWAP_ALGO == NONE
   return uvmcopy_special(old, new, sz, son);
 #else
   if (dad->pid <= 2)
   {
     return uvmcopy_special(old, new, sz, son);
   }
+#endif
 #endif
 
   // struct proc *dad = myproc();
