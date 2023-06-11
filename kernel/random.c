@@ -27,12 +27,14 @@ int randomwrite(int user_src, uint64 src, int n)
 {
     if (n != 1)
         return -1;
-    lfsr_seed = ((uint8 *)src)[0];
+    uint8 c;
+    if (either_copyin(&c, user_src, src, 1) == -1)
+        return -1;
+    lfsr_seed = c;
     return 1;
 }
 int randomread(int user_dst, uint64 dst, int n)
 {
-    printf("randomread\n");
     int i;
     uint8 lfsr = lfsr_seed;
     acquire(&random_lock);

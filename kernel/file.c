@@ -214,22 +214,25 @@ int fileseek(struct file *f, int offset, int whence)
     ilock(f->ip);
     if (whence == SEEK_SET)
     {
-      f->off = offset;
+      if (offset < 0)
+        f->off = 0;
+      else
+        f->off = offset;
     }
     else if (whence == SEEK_CUR)
     {
-      f->off += offset;
+      if ((int)f->off + offset < 0)
+        f->off = 0;
+      else
+        f->off += offset;
     }
     else
     {
       iunlock(f->ip);
       return -1;
     }
-    if (f->off < 0)
-    {
-      f->off = 0;
-    }
-    else if (f->off > f->ip->size)
+
+    if (f->off > f->ip->size)
     {
       f->off = f->ip->size;
     }
