@@ -20,13 +20,13 @@ int main(void)
     mknod("console", CONSOLE, 0);
     open("console", O_RDWR);
   }
-  int fd;
-  if ((fd = open("random", O_RDWR)) < 0)
-  {
-    printf("init: open random failed\n");
-    mknod("random", RANDOM, 0);
-    open("console", O_RDWR);
-  }
+  // int fd;
+  // if ((fd = open("random", O_RDWR)) < 0)
+  // {
+  //   printf("init: open random failed\n");
+  //   open("console", O_RDWR);
+  // }
+  mknod("random", RANDOM, 0);
 
   dup(0); // stdout
   dup(0); // stderr
