@@ -51,6 +51,6 @@ int randomread(int user_dst, uint64 dst, int n)
 void randominit(void)
 {
     initlock(&random_lock, "random");
-    devsw[RANDOM].read = randomwrite;
-    devsw[RANDOM].write = randomread;
+    devsw[RANDOM].read = randomread;
+    devsw[RANDOM].write = randomwrite;
 }

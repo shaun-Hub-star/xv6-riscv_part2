@@ -19,11 +19,11 @@ int main()
             printf("0\n");
         }
     }
-    char buffer[256 - 10 + 1];
+    char buffer[256 - 10];
     fd = open("random", O_RDWR);
-    read(fd, buffer, 256 - 10 + 1);
+    read(fd, buffer, 256 - 10);
     close(fd);
-    if (buf[0] == buffer[256 - 10])
+    if (buf[0] == buffer[256 - 10 - 1])
         printf("random test success\n");
     else
         printf("random test failed\n");
